@@ -22,7 +22,11 @@ const PLATFORMS = [
 let session = null;
 let connectedProfiles = []; // { platform, label, handle, id }[]
 let postHistory = [];
+let scheduledPosts = [];
 let currentView = "compose";
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calSelected = null;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
@@ -274,6 +278,154 @@ function connectPlatform(key) {
   }
 }
 
+// ── Calendar ──
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+function renderCalendar() {
+  $("#calendar-month").textContent = `${MONTHS[calMonth]} ${calYear}`;
+  const grid = $("#calendar-grid");
+  let html = DAYS.map((d) => `<div class="calendar-header">${d}</div>`).join("");
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const prevMonthDays = new Date(calYear, calMonth, 0).getDate();
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+
+  // Days from previous month
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const d = prevMonthDays - i;
+    html += `<div class="calendar-day other-month">${d}</div>`;
+  }
+
+  // Current month days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const isToday = dateStr === todayStr;
+    const isSelected = dateStr === calSelected;
+    const hasPosts = scheduledPosts.some((p) => p.scheduledAt?.startsWith(dateStr));
+    html += `<div class="calendar-day${isToday ? " today" : ""}${isSelected ? " selected" : ""}${hasPosts ? " has-posts" : ""}" data-date="${dateStr}">${d}</div>`;
+  }
+
+  // Remaining cells
+  const totalCells = firstDay + daysInMonth;
+  const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for (let d = 1; d <= remaining; d++) {
+    html += `<div class="calendar-day other-month">${d}</div>`;
+  }
+
+  grid.innerHTML = html;
+
+  grid.querySelectorAll(".calendar-day:not(.other-month)").forEach((day) => {
+    day.addEventListener("click", () => {
+      calSelected = day.dataset.date;
+      renderCalendar();
+      renderDayPosts();
+    });
+  });
+
+  renderDayPosts();
+}
+
+function renderDayPosts() {
+  const container = $("#calendar-posts");
+  if (!calSelected) { container.innerHTML = ""; return; }
+
+  const dayPosts = scheduledPosts.filter((p) => p.scheduledAt?.startsWith(calSelected));
+  const dateLabel = new Date(calSelected + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+  let html = `<h3 style="margin-bottom:12px;">${dateLabel}</h3>`;
+
+  if (dayPosts.length) {
+    html += dayPosts.map((p) => `
+      <div class="scheduled-list-item">
+        <div>
+          <div class="sli-text">${esc(p.text.slice(0, 100))}${p.text.length > 100 ? "…" : ""}</div>
+          <div class="sli-meta">${p.platforms?.join(", ")} · ${new Date(p.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+        </div>
+        <button class="btn btn-xs btn-ghost" data-cancel="${p.id}" style="color:var(--error);">Cancel</button>
+      </div>`).join("");
+  } else {
+    html += `<p style="color:var(--text-muted);font-size:0.875rem;">No posts scheduled for this day.</p>`;
+  }
+
+  // Schedule form
+  html += `
+    <div class="schedule-form">
+      <textarea id="sched-text" placeholder="What do you want to post?" rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:6px;padding:10px;font:inherit;font-size:0.875rem;resize:vertical;"></textarea>
+      <div class="schedule-form-row">
+        <input type="datetime-local" id="sched-time" value="${calSelected}T09:00" style="flex:1;" />
+        <button class="btn btn-sm btn-primary" id="btn-schedule">Schedule</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-muted);">Select platforms in the Compose tab first, or they will default to your connected platforms.</div>
+    </div>`;
+  container.innerHTML = html;
+
+  // Cancel buttons
+  container.querySelectorAll("[data-cancel]").forEach((btn) => {
+    btn.addEventListener("click", async () => cancelScheduled(btn.dataset.cancel));
+  });
+
+  // Schedule button
+  const schedBtn = $("#btn-schedule");
+  if (schedBtn) {
+    schedBtn.addEventListener("click", schedulePost);
+  }
+}
+
+async function fetchScheduled() {
+  if (!session?.access_token) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/scheduled`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    scheduledPosts = (await res.json()) || [];
+  } catch { scheduledPosts = []; }
+  renderCalendar();
+}
+
+async function schedulePost() {
+  const text = $("#sched-text")?.value?.trim();
+  const timeInput = $("#sched-time")?.value;
+  if (!text) return;
+  if (!timeInput) return;
+
+  const platforms = Array.from($$(".platform-chip.selected")).map((c) => c.dataset.platform);
+  if (!platforms.length) { alert("Select at least one platform in the Compose tab."); return; }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/schedule`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ text, platforms, scheduledAt: new Date(timeInput).toISOString() }),
+    });
+    if (res.ok) {
+      await fetchScheduled();
+      $("#sched-text").value = "";
+    } else {
+      const err = await res.json();
+      alert(err.error || "Failed to schedule");
+    }
+  } catch { alert("Network error."); }
+}
+
+async function cancelScheduled(id) {
+  if (!confirm("Cancel this scheduled post?")) return;
+  try {
+    await fetch(`${API_BASE}/api/scheduled/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    await fetchScheduled();
+  } catch { alert("Failed to cancel."); }
+}
+
+$("#cal-prev").addEventListener("click", () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } calSelected = null; renderCalendar(); });
+$("#cal-next").addEventListener("click", () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } calSelected = null; renderCalendar(); });
+$("#cal-today").addEventListener("click", () => { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); calSelected = new Date().toISOString().slice(0,10); renderCalendar(); });
+
 // ── Init ──
 
 async function init() {
@@ -282,6 +434,7 @@ async function init() {
   renderAccounts();
   renderPlatformChips();
   await refreshAuth();
+  await fetchScheduled();
 }
 
 init();

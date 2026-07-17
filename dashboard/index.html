@@ -15,6 +15,7 @@
       <a href="/" class="topbar-logo"><span class="topbar-logo-dot"></span>cnxt to post</a>
       <nav class="topbar-nav" id="topbar-nav">
         <button class="nav-link nav-link-active" data-view="compose">Compose</button>
+        <button class="nav-link" data-view="schedule">Schedule</button>
         <button class="nav-link" data-view="history">History</button>
         <button class="nav-link" data-view="accounts">Accounts</button>
         <button class="nav-link" data-view="docs">API</button>
@@ -67,6 +68,25 @@
             </div>
           </div>
           <div id="post-feedback" class="feedback"></div>
+        </div>
+      </section>
+
+      <!-- Schedule View -->
+      <section id="view-schedule" class="view hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title" id="calendar-month">July 2026</h2>
+              <p class="card-subtitle" id="calendar-subtitle">Click a date to schedule a post</p>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-secondary" id="cal-prev">←</button>
+              <button class="btn btn-sm btn-secondary" id="cal-today">Today</button>
+              <button class="btn btn-sm btn-secondary" id="cal-next">→</button>
+            </div>
+          </div>
+          <div class="calendar" id="calendar-grid"></div>
+          <div id="calendar-posts" style="margin-top:16px;"></div>
         </div>
       </section>
 

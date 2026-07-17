@@ -237,6 +237,88 @@ a:hover { text-decoration: underline; }
 .empty-state-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.6; }
 .empty-state-text { color: var(--text-muted); font-size: 0.9375rem; }
 
+/* Calendar */
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.calendar-header {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 8px 0;
+  text-transform: uppercase;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition);
+  position: relative;
+}
+.calendar-day:hover { background: var(--bg); }
+.calendar-day.other-month { color: var(--text-muted); opacity: 0.4; }
+.calendar-day.today { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+.calendar-day.selected { background: var(--brand); color: #fff; }
+.calendar-day.has-posts::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+.schedule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius);
+}
+
+.schedule-form-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.schedule-form input[type="datetime-local"],
+.schedule-form select {
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: inherit;
+  background: var(--surface);
+}
+
+.scheduled-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.scheduled-list-item .sli-text { flex: 1; font-size: 0.875rem; }
+.scheduled-list-item .sli-meta { font-size: 0.75rem; color: var(--text-muted); }
+
 /* Responsive */
 @media (max-width: 640px) {
   .topbar { padding: 0 16px; gap: 12px; }
