@@ -95,6 +95,40 @@ $("#btn-sign-out").addEventListener("click", async () => {
   renderPlatformChips();
 });
 
+// ── Mobile Menu & Sidebar ──
+
+const mobileMenuBtn = $("#mobile-menu-btn");
+const sidebar = $("#sidebar");
+const sidebarClose = $("#sidebar-close");
+const sidebarOverlay = $("#sidebar-overlay");
+
+function toggleSidebar() {
+  sidebar.classList.toggle("sidebar-open");
+  sidebarOverlay.classList.toggle("active");
+  document.body.style.overflow = sidebar.classList.contains("sidebar-open") ? "hidden" : "";
+}
+
+if (mobileMenuBtn) {
+  mobileMenuBtn.addEventListener("click", toggleSidebar);
+}
+
+if (sidebarClose) {
+  sidebarClose.addEventListener("click", toggleSidebar);
+}
+
+if (sidebarOverlay) {
+  sidebarOverlay.addEventListener("click", toggleSidebar);
+}
+
+// Close sidebar when clicking nav items on mobile
+$$(".sidebar-nav-item").forEach((link) => {
+  link.addEventListener("click", () => {
+    if (window.innerWidth <= 768) {
+      toggleSidebar();
+    }
+  });
+});
+
 // ── Navigation ──
 
 function showView(name) {
@@ -103,10 +137,26 @@ function showView(name) {
   const target = $(`#view-${name}`);
   if (target) target.classList.remove("hidden");
 
+  // Update top nav
   $$(".nav-link").forEach((l) => l.classList.toggle("nav-link-active", l.dataset.view === name));
+  
+  // Update sidebar nav
+  $$(".sidebar-nav-item").forEach((l) => l.classList.toggle("sidebar-nav-item-active", l.dataset.view === name));
 }
 
+// ── Old topbar navigation (for reference) ──
 $$(".nav-link").forEach((link) => {
+  link.addEventListener("click", () => {
+    if (!session && (link.dataset.view === "compose" || link.dataset.view === "history" || link.dataset.view === "accounts")) {
+      showView("welcome");
+      return;
+    }
+    showView(link.dataset.view);
+  });
+});
+
+// ── Sidebar navigation ──
+$$(".sidebar-nav-item").forEach((link) => {
   link.addEventListener("click", () => {
     if (!session && (link.dataset.view === "compose" || link.dataset.view === "history" || link.dataset.view === "accounts")) {
       showView("welcome");
@@ -134,6 +184,7 @@ function renderPlatformChips() {
       const cb = chip.querySelector("input");
       cb.checked = !cb.checked;
       chip.classList.toggle("selected", cb.checked);
+      updatePlatformPreviews();
     });
   });
 }
@@ -152,6 +203,7 @@ textarea.addEventListener("input", () => {
   if (len > CHAR_HARD_LIMIT) charCount.classList.add("danger");
   else if (len > CHAR_SOFT_LIMIT) charCount.classList.add("warning");
   btnPost.disabled = len === 0 || len > CHAR_HARD_LIMIT;
+  updatePlatformPreviews();
 });
 
 btnPost.addEventListener("click", async () => {
@@ -425,6 +477,148 @@ async function cancelScheduled(id) {
 $("#cal-prev").addEventListener("click", () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } calSelected = null; renderCalendar(); });
 $("#cal-next").addEventListener("click", () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } calSelected = null; renderCalendar(); });
 $("#cal-today").addEventListener("click", () => { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); calSelected = new Date().toISOString().slice(0,10); renderCalendar(); });
+
+// ── Media Upload ──
+
+const mediaDropzone = $("#media-dropzone");
+const mediaInput = $("#media-input");
+const mediaPreview = $("#media-preview");
+
+let uploadedMedia = [];
+
+if (mediaDropzone && mediaInput) {
+  mediaInput.addEventListener("change", (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      handleMediaUpload(files);
+    }
+  });
+
+  mediaDropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    mediaDropzone.style.borderColor = "var(--brand)";
+    mediaDropzone.style.background = "var(--brand-soft)";
+  });
+
+  mediaDropzone.addEventListener("dragleave", () => {
+    mediaDropzone.style.borderColor = "var(--border)";
+    mediaDropzone.style.background = "var(--bg)";
+  });
+
+  mediaDropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    mediaDropzone.style.borderColor = "var(--border)";
+    mediaDropzone.style.background = "var(--bg)";
+    
+    const files = Array.from(e.dataTransfer.files).filter((f) => 
+      f.type.startsWith("image/") || f.type.startsWith("video/")
+    );
+    
+    if (files.length > 0) {
+      handleMediaUpload(files);
+    }
+  });
+}
+
+function handleMediaUpload(files) {
+  files.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      uploadedMedia.push({
+        file,
+        url: e.target.result,
+        type: file.type.startsWith("image/") ? "image" : "video"
+      });
+      renderMediaPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderMediaPreview() {
+  if (uploadedMedia.length === 0) {
+    mediaPreview.style.display = "none";
+    mediaDropzone.style.display = "flex";
+    return;
+  }
+  
+  mediaPreview.style.display = "flex";
+  mediaDropzone.style.display = "none";
+  
+  mediaPreview.innerHTML = uploadedMedia.map((media, index) => `
+    <div class="media-preview-item">
+      ${media.type === "image" 
+        ? `<img src="${media.url}" alt="Uploaded media" />`
+        : `<video src="${media.url}" muted></video>`}
+      <button class="media-preview-remove" data-index="${index}">×</button>
+    </div>
+  `).join("");
+  
+  mediaPreview.querySelectorAll(".media-preview-remove").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const index = parseInt(e.target.dataset.index);
+      uploadedMedia.splice(index, 1);
+      renderMediaPreview();
+    });
+  });
+}
+
+// ── Drafts ──
+
+const btnSaveDraft = $("#btn-save-draft");
+
+if (btnSaveDraft) {
+  btnSaveDraft.addEventListener("click", async () => {
+    const text = textarea.value.trim();
+    if (!text && uploadedMedia.length === 0) {
+      showFeedback("Add content to save as draft.", "error");
+      return;
+    }
+    
+    if (!session?.access_token) {
+      showFeedback("Please sign in to save drafts.", "error");
+      return;
+    }
+    
+    const platforms = Array.from($$(".platform-chip.selected")).map((c) => c.dataset.platform);
+    
+    btnSaveDraft.disabled = true;
+    btnSaveDraft.textContent = "Saving…";
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/drafts`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          text,
+          platforms,
+          media: uploadedMedia.map((m) => ({
+            type: m.type,
+            name: m.file.name
+          }))
+        }),
+      });
+      
+      if (res.ok) {
+        showFeedback("Draft saved!", "success");
+      } else {
+        const data = await res.json();
+        showFeedback(data.error || "Failed to save draft.", "error");
+      }
+    } catch {
+      showFeedback("Network error.", "error");
+    }
+    
+    btnSaveDraft.disabled = false;
+    btnSaveDraft.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save draft
+    `;
+  });
+}
 
 // ── Init ──
 

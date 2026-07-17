@@ -1,3 +1,5 @@
+# cnxt to post
+
 
 ## Auth cheat sheet
 
@@ -12,5 +14,7 @@
 | YouTube | Google OAuth 2.0 | Low | [console.cloud.google.com](https://console.cloud.google.com/apis/credentials) |
 | Threads |
 
-Run the database schema in your Supabase SQL editor
+
+
+- Run the database schema in your Supabase SQL editor
 Set environment variables in Cloudflare Workers (ENCRYPTION_KEY, OAuth clients)

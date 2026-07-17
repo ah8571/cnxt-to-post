@@ -7,67 +7,220 @@
   <meta name="description" content="Compose once, publish everywhere. Free cross-posting to Bluesky, LinkedIn, Facebook, Instagram, Threads, TikTok, and X." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/style-redesigned.css" />
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
-      <a href="/" class="topbar-logo"><span class="topbar-logo-dot"></span>cnxt to post</a>
-      <nav class="topbar-nav" id="topbar-nav">
-        <button class="nav-link nav-link-active" data-view="compose">Compose</button>
-        <button class="nav-link" data-view="schedule">Schedule</button>
-        <button class="nav-link" data-view="history">History</button>
-        <button class="nav-link" data-view="accounts">Accounts</button>
-        <button class="nav-link" data-view="docs">API</button>
-      </nav>
-      <div class="topbar-right">
-        <span id="user-email" class="text-sm text-muted"></span>
-        <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-sm btn-secondary" id="btn-sign-in">Sign in</a>
-        <button class="btn btn-sm btn-ghost hidden" id="btn-sign-out">Sign out</button>
-      </div>
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+      <a href="/" class="mobile-logo"><span class="mobile-logo-dot"></span>cnxt to post</a>
+      <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
     </header>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="/" class="sidebar-logo">
+          <span class="sidebar-logo-dot"></span>
+          <span>cnxt to post</span>
+        </a>
+        <button class="sidebar-close" id="sidebar-close" aria-label="Close sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="sidebar-nav-item sidebar-nav-item-active" data-view="compose">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span>Compose</span>
+        </button>
+        <button class="sidebar-nav-item" data-view="schedule">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Schedule</span>
+        </button>
+        <button class="sidebar-nav-item" data-view="history">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>History</span>
+        </button>
+        <button class="sidebar-nav-item" data-view="accounts">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Accounts</span>
+        </button>
+        <button class="sidebar-nav-item" data-view="docs">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span>API</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user" id="sidebar-user">
+          <div class="sidebar-user-avatar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="sidebar-user-info">
+            <span class="sidebar-user-email" id="user-email"></span>
+            <span class="sidebar-user-plan">Free forever</span>
+          </div>
+        </div>
+        <div class="sidebar-actions">
+          <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-sm btn-primary btn-full" id="btn-sign-in">Sign in</a>
+          <button class="btn btn-sm btn-ghost btn-full hidden" id="btn-sign-out">Sign out</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
     <main class="main-content">
       <!-- Welcome / Landing (when signed out) -->
       <section id="view-welcome" class="view">
-        <div style="text-align:center;padding:48px 20px;">
-          <h1 style="font-size:2rem;font-weight:700;margin-bottom:12px;">Post to everywhere.<br>From one place.</h1>
-          <p style="color:var(--text-muted);font-size:1.05rem;max-width:540px;margin:0 auto 28px;">
-            Compose once, publish to Bluesky, X, LinkedIn, Facebook, Instagram, Threads, and TikTok — simultaneously.
-            Free. Available as a web app and a REST API.
-          </p>
-          <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-primary" style="font-size:1rem;padding:12px 28px;">Sign in to get started</a>
-          <div style="margin-top:36px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;max-width:500px;margin-left:auto;margin-right:auto;">
-            <span class="history-platform-badge" style="font-size:0.8rem;padding:4px 12px;">Bluesky</span>
-            <span class="history-platform-badge" style="font-size:0.8rem;padding:4px 12px;">X</span>
-            <span class="history-platform-badge" style="font-size:0.8rem;padding:4px 12px;">LinkedIn</span>
-            <span class="history-platform-badge" style="font-size:0.8rem;padding:4px 12px;">Facebook</span>
-            <span class="history-platform-badge" style="font-size:0.8rem;padding:4px 12px;">Instagram</span>
-            <span class="history-platform-badge" style="font-size:0.8rem;padding:4px 12px;">Threads</span>
-            <span class="history-platform-badge" style="font-size:0.8rem;padding:4px 12px;">TikTok</span>
+        <div class="hero">
+          <div class="hero-content">
+            <div class="hero-badge">Free forever • No subscriptions</div>
+            <h1 class="hero-title">Post to everywhere.<br><span class="hero-title-gradient">From one place.</span></h1>
+            <p class="hero-description">
+              Compose once, publish to Bluesky, X, LinkedIn, Facebook, Instagram, Threads, and TikTok — simultaneously.
+            </p>
+            <div class="hero-actions">
+              <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-primary btn-large">Get started free</a>
+              <a href="https://github.com/ah8571/cnxt-to-post" class="btn btn-secondary btn-large">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                View on GitHub
+              </a>
+            </div>
+            <div class="hero-platforms">
+              <span class="hero-platform-label">Works with</span>
+              <div class="hero-platform-icons">
+                <span class="hero-platform-icon" title="Bluesky">🦋</span>
+                <span class="hero-platform-icon" title="X">✖️</span>
+                <span class="hero-platform-icon" title="LinkedIn">💼</span>
+                <span class="hero-platform-icon" title="Facebook">📘</span>
+                <span class="hero-platform-icon" title="Instagram">📸</span>
+                <span class="hero-platform-icon" title="Threads">🧵</span>
+                <span class="hero-platform-icon" title="TikTok">🎵</span>
+              </div>
+            </div>
           </div>
-          <p style="color:var(--text-muted);font-size:0.85rem;margin-top:10px;">Connect your accounts once, then post everywhere. No subscription.</p>
+        </div>
+
+        <div class="features">
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">⚡</div>
+              <h3 class="feature-title">Instant Cross-Posting</h3>
+              <p class="feature-description">Write once, publish to all your platforms in seconds. No switching between apps.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">📅</div>
+              <h3 class="feature-title">Smart Scheduling</h3>
+              <p class="feature-description">Schedule posts for the perfect time. Calendar view with drag-and-drop.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🔒</div>
+              <h3 class="feature-title">Secure by Default</h3>
+              <p class="feature-description">All tokens encrypted with AES-256. Your accounts, your keys, your control.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">📊</div>
+              <h3 class="feature-title">Track Performance</h3>
+              <p class="feature-description">Unified analytics across all platforms. See what resonates with your audience.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🔌</div>
+              <h3 class="feature-title">Powerful API</h3>
+              <p class="feature-description">Build your own tools on top of cnxt-to-post. Full REST API, open source.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">💰</div>
+              <h3 class="feature-title">100% Free Forever</h3>
+              <p class="feature-description">No subscriptions, no limits, no hidden fees. Open source and community-driven.</p>
+            </div>
+          </div>
         </div>
       </section>
 
       <!-- Compose (when signed in) -->
       <section id="view-compose" class="view hidden">
-        <div class="card">
-          <div class="card-header">
-            <div><h2 class="card-title">New post</h2><p class="card-subtitle">Write once, publish everywhere.</p></div>
-          </div>
-          <textarea id="post-text" class="compose-textarea" placeholder="What's on your mind?" maxlength="5000" rows="5"></textarea>
-          <div class="compose-toolbar">
-            <div class="platform-toggles" id="platform-toggles"></div>
-            <div class="compose-actions">
-              <span class="char-count" id="char-count">0 / 300</span>
-              <button class="btn btn-primary" id="btn-post" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
-                Post
-              </button>
+        <div class="compose-page">
+          <div class="compose-main">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h2 class="card-title">New post</h2>
+                  <p class="card-subtitle">Write once, publish everywhere.</p>
+                </div>
+                <div class="card-header-actions">
+                  <button class="btn btn-sm btn-secondary" id="btn-save-draft">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Save draft
+                  </button>
+                </div>
+              </div>
+
+              <!-- Media Upload -->
+              <div class="compose-media" id="compose-media">
+                <div class="media-dropzone" id="media-dropzone">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="media-dropzone-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span class="media-dropzone-text">Drop images or videos here</span>
+                  <span class="media-dropzone-subtext">or click to browse</span>
+                  <input type="file" id="media-input" accept="image/*,video/*" multiple class="media-input">
+                </div>
+                <div class="media-preview" id="media-preview" style="display:none;"></div>
+              </div>
+
+              <!-- Rich Text Toolbar -->
+              <div class="compose-toolbar">
+                <div class="toolbar-actions">
+                  <button class="toolbar-btn" title="Add emoji" id="btn-emoji">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                  </button>
+                  <button class="toolbar-btn" title="Add hashtags" id="btn-hashtags">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+                  </button>
+                  <button class="toolbar-btn" title="Add mention" id="btn-mention">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </button>
+                  <button class="toolbar-btn" title="Add link" id="btn-link">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <textarea id="post-text" class="compose-textarea" placeholder="What's on your mind?" maxlength="5000" rows="5"></textarea>
+
+              <div class="compose-footer">
+                <div class="platform-toggles" id="platform-toggles"></div>
+                <div class="compose-actions">
+                  <span class="char-count" id="char-count">0 / 300</span>
+                  <button class="btn btn-primary" id="btn-post" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                    Post
+                  </button>
+                </div>
+              </div>
+
+              <div id="post-feedback" class="feedback"></div>
             </div>
           </div>
-          <div id="post-feedback" class="feedback"></div>
+
+          <!-- Platform Previews Sidebar -->
+          <div class="compose-sidebar">
+            <div class="preview-panel">
+              <div class="preview-header">
+                <h3 class="preview-title">Preview</h3>
+                <span class="preview-count" id="preview-count">0 platforms</span>
+              </div>
+              <div class="preview-list" id="preview-list">
+                <div class="preview-empty">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                  <p>Select platforms to see preview</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
