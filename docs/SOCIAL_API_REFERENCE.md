@@ -80,6 +80,24 @@ Auth: OAuth 2.0 via Login Kit. Content Posting API requires separate app review.
 
 ---
 
+## Threads (via Meta Graph API)
+
+Note: Requires the Threads API product added to your Meta app. Same OAuth flow as Instagram/Facebook.
+
+| | URL |
+|---|---|
+| **🔑 Get API keys** | [developers.facebook.com/apps](https://developers.facebook.com/apps) — same Meta app as Instagram/Facebook, add Threads API product |
+| **Post** (text, image, video, carousel) | Two-step: `POST https://graph.threads.net/v1.0/{threads-user-id}/threads` → `POST …/threads_publish` → [docs](https://developers.facebook.com/docs/threads) |
+| **Read post / metrics** | `GET https://graph.threads.net/v1.0/{media-id}?fields=id,text,permalink,media_url,insights` → [docs](https://developers.facebook.com/docs/threads) |
+| **Read replies** | `GET https://graph.threads.net/v1.0/{media-id}/replies` → [docs](https://developers.facebook.com/docs/threads) |
+| **Login** | Facebook Login for Business → same as Instagram → [docs](https://developers.facebook.com/docs/facebook-login) |
+
+Auth: Facebook OAuth 2.0. Permissions: `threads_basic`, `threads_content_publish`, `threads_manage_replies`. Rate limit: 250 posts/24h per user. Graph API v25.0.
+
+Text-only posts are supported (unlike Instagram which requires media).
+
+---
+
 ## Bluesky (AT Protocol)
 
 | | URL |
@@ -126,6 +144,7 @@ Auth: Google OAuth 2.0. Scopes: `https://www.googleapis.com/auth/youtube.upload`
 | Instagram | Facebook OAuth | Medium | [developers.facebook.com](https://developers.facebook.com/apps) |
 | Facebook | Facebook OAuth | Medium | [developers.facebook.com](https://developers.facebook.com/apps) |
 | TikTok | OAuth 2.0 (Login Kit) | Medium | [developers.tiktok.com](https://developers.tiktok.com/apps) |
+| Threads | Facebook OAuth 2.0 | Low | [developers.facebook.com](https://developers.facebook.com/apps) |
 | Bluesky | App Password or OAuth 2.0 + DPoP | Low / High | [bsky.app/settings](https://bsky.app/settings/app-passwords) |
 | YouTube | Google OAuth 2.0 | Low | [console.cloud.google.com](https://console.cloud.google.com/apis/credentials) |
 

@@ -6,6 +6,7 @@ import { postToFacebook, getFacebookMetrics } from "./platforms/facebook";
 import { postToInstagram, getInstagramMetrics } from "./platforms/instagram";
 import { postToTikTok, getTikTokMetrics } from "./platforms/tiktok";
 import { postToX, deleteFromX, getXMetrics } from "./platforms/x";
+import { postToThreads, getThreadsMetrics } from "./platforms/threads";
 
 export interface Env {
   SUPABASE_JWT_SECRET: string;
@@ -30,6 +31,10 @@ export interface Env {
   TIKTOK_ACCESS_TOKEN?: string;
   TIKTOK_OPEN_ID?: string;
 
+  // Threads
+  THREADS_ACCESS_TOKEN?: string;
+  THREADS_USER_ID?: string;
+
   // X (Twitter) — OAuth 1.0a
   X_CONSUMER_KEY?: string;
   X_CONSUMER_KEY_SECRET?: string;
@@ -37,8 +42,8 @@ export interface Env {
   X_ACCESS_TOKEN_SECRET?: string;
   X_BEARER_TOKEN?: string; // for reading metrics
 
-  // KV for rate limiting
-  RATE_LIMITS: KVNamespace;
+  // KV for rate limiting (optional — set up KV namespace and add to wrangler.toml)
+  RATE_LIMITS?: KVNamespace;
 }
 
 const ALLOWED_ORIGINS = [
@@ -149,13 +154,15 @@ async function handlePost(
     return errorResponse("Text content is required", 400, origin);
   }
 
-  // Rate limit: 30 posts per minute per user
-  const rateKey = `rate:post:${user.sub}`;
-  const current = parseInt((await env.RATE_LIMITS.get(rateKey)) ?? "0");
-  if (current >= 30) {
-    return errorResponse("Rate limit exceeded. Max 30 posts per minute.", 429, origin);
+  // Rate limit: 30 posts per minute per user (if KV is configured)
+  if (env.RATE_LIMITS) {
+    const rateKey = `rate:post:${user.sub}`;
+    const current = parseInt((await env.RATE_LIMITS.get(rateKey)) ?? "0");
+    if (current >= 30) {
+      return errorResponse("Rate limit exceeded. Max 30 posts per minute.", 429, origin);
+    }
+    await env.RATE_LIMITS.put(rateKey, String(current + 1), { expirationTtl: 60 });
   }
-  await env.RATE_LIMITS.put(rateKey, String(current + 1), { expirationTtl: 60 });
 
   // Post to each platform in parallel
   const results: PlatformPostResult[] = await Promise.all(
@@ -215,6 +222,13 @@ async function postToPlatform(
         return { platform, success: false, error: "TikTok not configured" };
       }
       return postToTikTok(text, env.TIKTOK_ACCESS_TOKEN, env.TIKTOK_OPEN_ID, mediaUrls);
+    }
+
+    case "threads": {
+      if (!env.THREADS_ACCESS_TOKEN || !env.THREADS_USER_ID) {
+        return { platform, success: false, error: "Threads not configured" };
+      }
+      return postToThreads(text, env.THREADS_ACCESS_TOKEN, env.THREADS_USER_ID, mediaUrls);
     }
 
     case "x": {
@@ -282,6 +296,13 @@ async function handleMetrics(
         return errorResponse("TikTok not configured", 500, origin);
       }
       const metrics = await getTikTokMetrics(postId, env.TIKTOK_ACCESS_TOKEN);
+      return json(metrics, 200, headers);
+    }
+    case "threads": {
+      if (!env.THREADS_ACCESS_TOKEN) {
+        return errorResponse("Threads not configured", 500, origin);
+      }
+      const metrics = await getThreadsMetrics(postId, env.THREADS_ACCESS_TOKEN);
       return json(metrics, 200, headers);
     }
     case "x": {

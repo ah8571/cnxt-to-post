@@ -20,6 +20,7 @@ const ACCOUNTS = [
   { platform: "facebook", name: "Facebook", icon: "📘", configured: false },
   { platform: "instagram", name: "Instagram", icon: "📸", configured: false },
   { platform: "tiktok", name: "TikTok", icon: "🎵", configured: false, note: "Content Posting API approval required" },
+  { platform: "threads", name: "Threads", icon: "🧵", configured: false },
 ];
 
 // ── DOM refs ──
