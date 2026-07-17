@@ -9,13 +9,13 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // ── Platform config ──
 const PLATFORMS = [
-  { key: "bluesky",   name: "Bluesky",   icon: "🦋", oauth: false, note: "App Password — no registration needed" },
-  { key: "x",         name: "X",          icon: "𝕏", oauth: true,  note: "BYOK or credits required" },
-  { key: "linkedin",  name: "LinkedIn",   icon: "💼", oauth: true },
-  { key: "facebook",  name: "Facebook",   icon: "📘", oauth: true },
-  { key: "instagram", name: "Instagram",  icon: "📸", oauth: true },
-  { key: "threads",   name: "Threads",    icon: "🧵", oauth: true },
-  { key: "tiktok",    name: "TikTok",     icon: "🎵", oauth: true, note: "Content Posting API approval required" },
+  { key: "bluesky",   name: "Bluesky",   oauth: false, note: "App Password — no registration needed" },
+  { key: "x",         name: "X",          oauth: true,  note: "BYOK or credits required" },
+  { key: "linkedin",  name: "LinkedIn",   oauth: true },
+  { key: "facebook",  name: "Facebook",   oauth: true },
+  { key: "instagram", name: "Instagram",  oauth: true },
+  { key: "threads",   name: "Threads",    oauth: true },
+  { key: "tiktok",    name: "TikTok",     oauth: true, note: "Content Posting API approval required" },
 ];
 
 // ── State ──
@@ -104,9 +104,9 @@ function renderPlatformChips() {
   const container = $("#platform-toggles");
   container.innerHTML = PLATFORMS.map((p) => {
     const connected = connectedPlatforms.has(p.key);
-    const cls = connected ? "selected" : p.oauth ? "" : "";
+    const cls = connected ? "selected" : "";
     return `<label class="platform-chip ${cls}" data-platform="${p.key}">
-      <span class="platform-icon">${p.icon}</span> ${p.name}
+      ${p.name}
       <input type="checkbox" ${connected ? "checked" : ""} />
     </label>`;
   }).join("");
@@ -219,7 +219,6 @@ function renderAccounts() {
   $("#account-list").innerHTML = PLATFORMS.map((p) => {
     const connected = connectedPlatforms.has(p.key);
     return `<div class="account-item">
-      <div class="account-item-icon">${p.icon}</div>
       <div class="account-item-info">
         <div class="account-item-name">${p.name}</div>
         <div class="account-item-status${connected ? " connected" : ""}">${connected ? "Connected" : p.note || "Not connected"}</div>
