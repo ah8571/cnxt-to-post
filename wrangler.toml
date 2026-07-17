@@ -1,0 +1,22 @@
+name = "cnxt-to-post"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Routes — API lives on post.cnxt.to
+routes = [
+  { pattern = "post.cnxt.to/*", zone_name = "cnxt.to" }
+]
+
+# KV for rate limiting counters
+[[kv_namespaces]]
+binding = "RATE_LIMITS"
+id = ""
+
+# Supabase JWT secret (set via wrangler secret)
+# SUPABASE_JWT_SECRET
+
+# Encrypted platform tokens stored as secrets
+# X_CONSUMER_KEY, X_CONSUMER_KEY_SECRET (for BYOK flow, encrypted per-user)
+
+[vars]
+ENVIRONMENT = "production"
