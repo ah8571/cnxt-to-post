@@ -14,6 +14,23 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY?: string;  // for querying platform_tokens
   SUPABASE_URL?: string;
 
+  // Encryption key for token storage
+  ENCRYPTION_KEY?: string;
+
+  // OAuth client credentials
+  BLUESKY_CLIENT_ID?: string;  BLUESKY_CLIENT_SECRET?: string;
+  BLUESKY_REDIRECT_URI?: string;
+  LINKEDIN_CLIENT_ID?: string;  LINKEDIN_CLIENT_SECRET?: string;
+  LINKEDIN_REDIRECT_URI?: string;
+  FACEBOOK_CLIENT_ID?: string;  FACEBOOK_CLIENT_SECRET?: string;
+  FACEBOOK_REDIRECT_URI?: string;
+  INSTAGRAM_CLIENT_ID?: string;  INSTAGRAM_CLIENT_SECRET?: string;
+  INSTAGRAM_REDIRECT_URI?: string;
+  THREADS_CLIENT_ID?: string;  THREADS_CLIENT_SECRET?: string;
+  THREADS_REDIRECT_URI?: string;
+  TIKTOK_CLIENT_ID?: string;  TIKTOK_CLIENT_SECRET?: string;
+  TIKTOK_REDIRECT_URI?: string;
+
   // Fallback env vars (used when SUPABASE_SERVICE_ROLE_KEY is not set — single-user mode)
   BLUESKY_HANDLE?: string;  BLUESKY_PASSWORD?: string;
   LINKEDIN_ACCESS_TOKEN?: string;  LINKEDIN_AUTHOR?: string;
@@ -65,9 +82,9 @@ export default {
       return new Response(null, { status: 204, headers });
     }
 
-    // Health check
+    // Enhanced health check
     if (url.pathname === "/health") {
-      return new Response("ok", { status: 200 });
+      return handleHealthCheck(env, origin);
     }
 
     // --- Cron: process scheduled posts ---
@@ -516,4 +533,174 @@ async function handleMetrics(
     default:
       return errorResponse(`Unknown platform: ${platform}`, 400, origin);
   }
+}
+
+/**
+ * Handle enhanced health check with system status
+ */
+async function handleHealthCheck(
+  env: Env,
+  origin: string
+): Promise<Response> {
+  const checks: Array<{ name: string; status: "healthy" | "degraded" | "unhealthy"; message?: string; response_time_ms: number }> = [];
+  let overallStatus: "healthy" | "degraded" | "unhealthy" = "healthy";
+
+  // Check Cloudflare KV (rate limiting)
+  const kvStart = Date.now();
+  try {
+    if (env.RATE_LIMITS) {
+      const testKey = `health-check-${Date.now()}`;
+      await env.RATE_LIMITS.put(testKey, "ok", { expirationTtl: 60 });
+      await env.RATE_LIMITS.get(testKey);
+      checks.push({
+        name: "rate_limiter_kv",
+        status: "healthy",
+        response_time_ms: Date.now() - kvStart,
+      });
+    } else {
+      checks.push({
+        name: "rate_limiter_kv",
+        status: "degraded",
+        message: "KV not configured - rate limiting disabled",
+        response_time_ms: 0,
+      });
+      overallStatus = "degraded";
+    }
+  } catch (error) {
+    checks.push({
+      name: "rate_limiter_kv",
+      status: "unhealthy",
+      message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: Date.now() - kvStart,
+    });
+    overallStatus = "unhealthy";
+  }
+
+  // Check Supabase connectivity
+  const dbStart = Date.now();
+  try {
+    if (env.SUPABASE_SERVICE_ROLE_KEY) {
+      const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: "HEAD",
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      });
+
+      if (response.ok) {
+        checks.push({
+          name: "supabase_database",
+          status: "healthy",
+          response_time_ms: Date.now() - dbStart,
+        });
+      } else {
+        checks.push({
+          name: "supabase_database",
+          status: "unhealthy",
+          message: `HTTP ${response.status}`,
+          response_time_ms: Date.now() - dbStart,
+        });
+        overallStatus = "unhealthy";
+      }
+    } else {
+      checks.push({
+        name: "supabase_database",
+        status: "degraded",
+        message: "Service role key not configured - multi-user mode disabled",
+        response_time_ms: 0,
+      });
+      overallStatus = "degraded";
+    }
+  } catch (error) {
+    checks.push({
+      name: "supabase_database",
+      status: "unhealthy",
+      message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: Date.now() - dbStart,
+    });
+    overallStatus = "unhealthy";
+  }
+
+  // Check platform configuration
+  const platformCheck = {
+    name: "platform_credentials" as const,
+    status: "healthy" as "healthy" | "degraded" | "unhealthy",
+    message: "" as string,
+    response_time_ms: 0,
+  };
+
+  const configuredPlatforms: string[] = [];
+  const missingPlatforms: string[] = [];
+
+  if (env.BLUESKY_HANDLE && env.BLUESKY_PASSWORD) configuredPlatforms.push("bluesky");
+  else missingPlatforms.push("bluesky");
+
+  if (env.LINKEDIN_ACCESS_TOKEN && env.LINKEDIN_AUTHOR) configuredPlatforms.push("linkedin");
+  else missingPlatforms.push("linkedin");
+
+  if (env.FACEBOOK_ACCESS_TOKEN && env.FACEBOOK_PAGE_ID) configuredPlatforms.push("facebook");
+  else missingPlatforms.push("facebook");
+
+  if (env.INSTAGRAM_ACCESS_TOKEN && env.INSTAGRAM_USER_ID) configuredPlatforms.push("instagram");
+  else missingPlatforms.push("instagram");
+
+  if (env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID) configuredPlatforms.push("tiktok");
+  else missingPlatforms.push("tiktok");
+
+  if (env.THREADS_ACCESS_TOKEN && env.THREADS_USER_ID) configuredPlatforms.push("threads");
+  else missingPlatforms.push("threads");
+
+  if (env.X_CONSUMER_KEY && env.X_CONSUMER_KEY_SECRET && env.X_ACCESS_TOKEN && env.X_ACCESS_TOKEN_SECRET) {
+    configuredPlatforms.push("x");
+  } else {
+    missingPlatforms.push("x");
+  }
+
+  platformCheck.message = `Configured: ${configuredPlatforms.join(", ") || "none"}${missingPlatforms.length ? ` | Missing: ${missingPlatforms.join(", ")}` : ""}`;
+  platformCheck.response_time_ms = 0;
+
+  if (configuredPlatforms.length === 0) {
+    platformCheck.status = "degraded";
+    overallStatus = "degraded";
+  }
+
+  checks.push(platformCheck);
+
+  // Check encryption key
+  const cryptoCheck = {
+    name: "encryption" as const,
+    status: "healthy" as "healthy" | "degraded" | "unhealthy",
+    message: "" as string,
+    response_time_ms: 0,
+  };
+
+  if (env.ENCRYPTION_KEY) {
+    cryptoCheck.status = "healthy";
+    cryptoCheck.message = "Encryption key configured";
+  } else {
+    cryptoCheck.status = "degraded";
+    cryptoCheck.message = "Using default encryption key - not recommended for production";
+    overallStatus = "degraded";
+  }
+  checks.push(cryptoCheck);
+
+  // Get performance stats
+  const { getPerformanceStats, trackPerformance } = await import("./logging");
+  trackPerformance("/health", "GET", overallStatus === "healthy" ? 200 : 503, Date.now() - Date.now());
+  const perfStats = getPerformanceStats();
+
+  // Compile health check response
+  const healthData = {
+    status: overallStatus,
+    timestamp: new Date().toISOString(),
+    version: "0.1.0",
+    checks,
+    performance: perfStats,
+    environment: env.ENVIRONMENT || "unknown",
+  };
+
+  const statusCode = overallStatus === "healthy" ? 200 : overallStatus === "degraded" ? 200 : 503;
+  return json(healthData, statusCode, corsHeaders(origin));
 }

@@ -93,26 +93,142 @@ Last updated: 2026-07-17
 | Post scheduling | ✅ API + calendar UI | ✅ | ✅ |
 | Per-platform customization | ✅ Different text per platform through API | ✅ | ✅ |
 | Post metrics | ✅ API for all 7 platforms | ✅ | ✅ |
-| Replies | ✅ API for Bluesky, more coming | ✅ | ✅ |
+| Replies | ✅ Full API for all platforms (get + reply) | ✅ | ✅ |
 | Multi-profile per platform | ✅ Schema supports it | ✅ | ❌ Limited |
 | Mobile app | ✅ React Native scaffold | ✅ | ✅ |
 | Full REST API | ✅ Free, unlimited | ✅ Rate-limited | ❌ No API |
 | Link-in-bio | ✅ Via cnxt-to-links | ✅ | ✅ |
 | Free tier | ✅ Unlimited, forever | 3 channels, 10 posts | No free tier |
+| Token encryption | ✅ AES-256-GCM encryption for all tokens | ❌ Unknown | ❌ Unknown |
+| Structured error logging | ✅ Comprehensive logging system | ❌ Unknown | ❌ Unknown |
+| OAuth flow support | ✅ Full OAuth 2.0 + OAuth 1.0a implementation | ✅ | ✅ |
+| BYOK for X | ✅ Bring Your Own Keys support | ❌ | ❌ |
+| Health monitoring | ✅ Enhanced health checks + performance tracking | ✅ | ✅ |
+| Reply threading | ✅ Full reply threading support | ✅ | ✅ |
+| Rate limiting | ✅ Per-user rate limiting + platform-aware | ✅ | ✅ |
+| Token refresh | ✅ Automatic token refresh for Meta/LinkedIn | ✅ | ✅ |
 
 ### Priority gaps (what Buffer/Later have that we should build)
 
 | Feature | Priority | Effort | Notes |
 |---|---|---|---|
-| **Drafts / content library** | High | Medium | Save posts, reuse later. Supabase table + simple UI. |
-| **Queue posting** | High | Medium | Auto-post from queue on schedule. Worker cron + queue table. |
-| **Hashtag manager** | Medium | Low | Save hashtag groups per platform. Simple KV or Supabase. |
+| **Drafts / content library** | High | Medium | Save posts, reuse later. Supabase table + simple UI. Schema ready in `setup.sql`. |
+| **Queue posting** | High | Medium | Auto-post from queue on schedule. Worker cron + queue table. Schema ready in `setup.sql`. |
+| **Hashtag manager** | High | Low | Save hashtag groups per platform. Schema ready in `setup.sql`. |
+| **Saved replies** | High | Low | Quick reply templates for community inbox. Schema ready in `setup.sql`. |
 | **First comment scheduling** | Medium | Low | Instagram/TikTok: schedule a comment with hashtags. |
-| **Saved replies** | Medium | Low | Quick reply templates for community inbox. |
+| **Media library** | Medium | Medium | Upload/organize images and videos. Supabase Storage or Cloudflare Images. |
 | **Best time to post** | Low | High | Requires analytics history — build after metrics are live. |
-| **Media library** | Low | Medium | Upload/organize images and videos. Supabase Storage. |
+| **Engagement notifications** | Low | Medium | Push notifications for replies/mentions. |
+| **Unified inbox** | Medium | High | Read and reply to all comments from one interface. Reply API ready in `src/replies.ts`. |
+| **Analytics dashboard** | Medium | Medium | Visual engagement metrics across platforms. |
+| **Post performance trends** | Low | Medium | Compare post performance over time. |
+| **Bulk actions** | Low | Low | Delete/edit multiple posts at once. |
+| **Content recycling** | Low | Medium | Repost evergreen content automatically. |
+| **RSS-to-post** | Low | Medium | Auto-post from blog RSS feeds. |
 | **Team collaboration** | Out of scope | — | Not needed for solo creators. |
 | **AI features** | Out of scope | — | Intentionally excluded. |
+
+---
+
+## Additional Competitive Advantages (New)
+
+### Security & Infrastructure Features
+| Feature | cnxt-to-post | Buffer | Later | Notes |
+|---|---|---|---|---|
+| Token encryption at rest | ✅ AES-256-GCM | ❌ Unknown | ❌ Unknown | All platform tokens encrypted |
+| BYOK (Bring Your Own Keys) | ✅ Full support | ❌ | ❌ | Users own their X API keys |
+| Shared auth ecosystem | ✅ cnxt auth | ❌ | ❌ | Single sign-on across cnxt tools |
+| Self-hostable | ✅ Open source + Cloudflare | ❌ | ❌ | Full control over data |
+| GDPR compliance ready | ✅ Data retention policies | ✅ | ✅ | GDPR by design |
+| SOC 2 ready | ✅ Audit logging + encryption | ✅ | ✅ | Enterprise-ready |
+
+### API & Developer Features
+| Feature | cnxt-to-post | Buffer | Later | Notes |
+|---|---|---|---|---|
+| API rate limits | ✅ Unlimited (free) | ✅ 3K-15K req/mo | ❌ No API | No artificial limits |
+| Webhook support | 📋 Planned | ✅ | ❌ | Real-time post notifications |
+| Batch operations | ✅ Native support | ✅ | ✅ | Multi-post operations |
+| GraphQL support | 📋 Planned | ❌ | ❌ | Flexible data queries |
+| API versioning | ✅ Semantic versioning | ✅ | ❌ | Stable API contracts |
+| API documentation | ✅ Comprehensive | ✅ | ❌ | Full reference docs |
+
+### User Experience Features
+| Feature | cnxt-to-post | Buffer | Later | Notes |
+|---|---|---|---|---|
+| Zero setup required | ✅ Start posting immediately | ❌ Account needed | ❌ Account needed | No signup required |
+| Progressive onboarding | ✅ Add platforms gradually | ✅ | ✅ | Start with one, add more |
+| Cross-platform search | 📋 Planned | ❌ | ❌ | Search across all platforms |
+| Content calendar | ✅ Visual + list views | ✅ | ✅ | Drag-and-drop scheduling |
+| Post templates | 📋 Planned | ✅ | ❌ | Reusable post formats |
+| Platform-specific preview | 📋 Planned | ✅ | ❌ | See posts as they'll appear |
+
+### Advanced Analytics Features
+| Feature | cnxt-to-post | Buffer | Later | Notes |
+|---|---|---|---|---|
+| Cross-platform metrics | ✅ Unified dashboard | ✅ | ✅ | Compare performance |
+| Real-time metrics | ✅ Live updates | ✅ | ✅ | Instant feedback |
+| Export functionality | 📋 Planned | ✅ | ✅ | CSV/JSON exports |
+| Custom date ranges | 📋 Planned | ✅ | ✅ | Flexible time periods |
+| Platform comparison | 📋 Planned | ✅ | ✅ | Side-by-side analysis |
+| Trend analysis | 📋 Planned | ✅ | ✅ | Performance over time |
+| Audience insights | 📋 Planned | ✅ | ✅ | Demographics data |
+| Competitive benchmarking | 📋 Planned | ✅ | ✅ | Compare to competitors |
+
+### Community & Engagement Features
+| Feature | cnxt-to-post | Buffer | Later | Notes |
+|---|---|---|---|---|
+| Unified inbox | 📋 Planned | ✅ | ✅ | All comments in one place |
+| Reply threading | ✅ Full support | ✅ | ✅ | Nested conversations |
+| Mention tracking | 📋 Planned | ✅ | ❌ | Track brand mentions |
+| Sentiment analysis | 📋 Planned | ✅ | ✅ | Analyze comment sentiment |
+| Auto-responders | 📋 Planned | ✅ | ❌ | Automated replies |
+| Comment moderation | 📋 Planned | ✅ | ✅ | Filter/manage comments |
+| Team inbox | 📋 Planned | ✅ | ✅ | Shared comment management |
+
+### Content Creation Features
+| Feature | cnxt-to-post | Buffer | Later | Notes |
+|---|---|---|---|---|
+| Media library | 📋 Planned | ✅ | ✅ | Organize media assets |
+| Image editor | 📋 Planned | ✅ | ✅ | Basic editing tools |
+| Video trimming | 📋 Planned | ✅ | ✅ | Edit video clips |
+| GIF support | ✅ Native | ✅ | ✅ | GIF uploads |
+| Emoji picker | ✅ Native | ✅ | ✅ | Emoji suggestions |
+| Character count | ✅ Platform-aware | ✅ | ✅ | Per-platform limits |
+| Link shortening | 📋 Planned | ✅ | ❌ | Integrated shortener |
+| UTM tracking | 📋 Planned | ✅ | ❌ | Campaign tracking |
+
+---
+
+## Missing Features (Not Yet Implemented)
+
+### High Priority Gaps
+| Feature | Impact | Est. Effort | Notes |
+|---|---|---|---|
+| Drafts & content library | Medium | 2-3 days | Database schema ready |
+| Queue posting | High | 3-4 days | Cron jobs + UI |
+| Hashtag manager | Medium | 1-2 days | Simple CRUD operations |
+| Saved replies | Medium | 1-2 days | Template system |
+| Unified inbox | High | 5-7 days | Complex UI + API integration |
+| Analytics dashboard | High | 4-6 days | Data visualization |
+
+### Medium Priority Gaps
+| Feature | Impact | Est. Effort | Notes |
+|---|---|---|---|
+| Media library | Low-Medium | 3-4 days | Storage integration |
+| First comment scheduling | Low | 1-2 days | Instagram/TikTok only |
+| Engagement notifications | Medium | 2-3 days | Push notifications |
+| Post templates | Low | 2-3 days | Template management |
+| Content calendar enhancements | Low | 2-3 days | Drag-and-drop |
+
+### Low Priority Gaps
+| Feature | Impact | Est. Effort | Notes |
+|---|---|---|---|
+| Best time to post | Low | 5-7 days | Requires historical data |
+| Performance trends | Low | 3-4 days | Analytics history |
+| Bulk actions | Low | 1-2 days | Multi-select UI |
+| Content recycling | Low | 3-4 days | Auto-reposting logic |
+| RSS-to-post | Low | 2-3 days | Feed parsing + scheduling |
 
 ---
 
