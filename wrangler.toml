@@ -7,10 +7,10 @@ routes = [
   { pattern = "post.cnxt.to/*", zone_name = "cnxt.to" }
 ]
 
-# KV for rate limiting counters (set after creation: npx wrangler kv:namespace create RATE_LIMITS)
-# [[kv_namespaces]]
-# binding = "RATE_LIMITS"
-# id = ""
+# KV for rate limiting counters
+[[kv_namespaces]]
+binding = "RATE_LIMITS"
+id = "0a83c67d64d5484e96cb732f64e19c89"
 
 [vars]
 ENVIRONMENT = "production"

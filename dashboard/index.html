@@ -4,20 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>cnxt to post — Cross-post everywhere</title>
-  <meta name="description" content="Compose once, publish everywhere. Free cross-posting to Bluesky, LinkedIn, Facebook, Instagram, TikTok, and X." />
+  <meta name="description" content="Compose once, publish everywhere. Free cross-posting to Bluesky, LinkedIn, Facebook, Instagram, Threads, TikTok, and X." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
   <div class="app-shell">
-    <!-- Top Bar -->
     <header class="topbar">
-      <a href="/" class="topbar-logo">
-        <span class="topbar-logo-dot"></span>cnxt to post
-      </a>
-      <nav class="topbar-nav">
+      <a href="/" class="topbar-logo"><span class="topbar-logo-dot"></span>cnxt to post</a>
+      <nav class="topbar-nav" id="topbar-nav">
         <button class="nav-link nav-link-active" data-view="compose">Compose</button>
         <button class="nav-link" data-view="history">History</button>
         <button class="nav-link" data-view="accounts">Accounts</button>
@@ -25,161 +21,83 @@
       </nav>
       <div class="topbar-right">
         <span id="user-email" class="text-sm text-muted"></span>
-        <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-sm btn-secondary hidden" id="btn-sign-in">Sign in</a>
+        <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-sm btn-secondary" id="btn-sign-in">Sign in</a>
         <button class="btn btn-sm btn-ghost hidden" id="btn-sign-out">Sign out</button>
       </div>
     </header>
 
-    <!-- Compose View -->
     <main class="main-content">
-      <section id="view-compose" class="view">
+      <!-- Welcome / Landing (when signed out) -->
+      <section id="view-welcome" class="view">
+        <div style="text-align:center;padding:48px 20px;">
+          <h1 style="font-size:2rem;font-weight:700;margin-bottom:12px;">Post to everywhere.<br>From one place.</h1>
+          <p style="color:var(--text-muted);font-size:1.05rem;max-width:500px;margin:0 auto 28px;">
+            Compose once and publish to Bluesky, X, LinkedIn, Facebook, Instagram, Threads, and TikTok — simultaneously. Free.
+          </p>
+          <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-primary" style="font-size:1rem;padding:12px 28px;">Sign in to get started</a>
+          <div style="margin-top:40px;display:flex;justify-content:center;gap:14px;flex-wrap:wrap;">
+            <span style="font-size:1.5rem;">🦋</span>
+            <span style="font-size:1.5rem;">𝕏</span>
+            <span style="font-size:1.5rem;">💼</span>
+            <span style="font-size:1.5rem;">📘</span>
+            <span style="font-size:1.5rem;">📸</span>
+            <span style="font-size:1.5rem;">🧵</span>
+            <span style="font-size:1.5rem;">🎵</span>
+          </div>
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-top:10px;">Connect your accounts, then post everywhere at once.</p>
+        </div>
+      </section>
+
+      <!-- Compose (when signed in) -->
+      <section id="view-compose" class="view hidden">
         <div class="card">
           <div class="card-header">
-            <div>
-              <h2 class="card-title">New post</h2>
-              <p class="card-subtitle">Write once, publish everywhere.</p>
-            </div>
+            <div><h2 class="card-title">New post</h2><p class="card-subtitle">Write once, publish everywhere.</p></div>
           </div>
-
-          <textarea
-            id="post-text"
-            class="compose-textarea"
-            placeholder="What's on your mind?"
-            maxlength="5000"
-            rows="5"
-          ></textarea>
-
+          <textarea id="post-text" class="compose-textarea" placeholder="What's on your mind?" maxlength="5000" rows="5"></textarea>
           <div class="compose-toolbar">
-            <div class="platform-toggles" id="platform-toggles">
-              <label class="platform-chip selected" data-platform="bluesky">
-                <span class="platform-icon">🦋</span> Bluesky
-                <input type="checkbox" checked />
-              </label>
-              <label class="platform-chip" data-platform="x">
-                <span class="platform-icon">𝕏</span> X
-                <input type="checkbox" />
-              </label>
-              <label class="platform-chip" data-platform="linkedin">
-                <span class="platform-icon">💼</span> LinkedIn
-                <input type="checkbox" />
-              </label>
-              <label class="platform-chip" data-platform="facebook">
-                <span class="platform-icon">📘</span> Facebook
-                <input type="checkbox" />
-              </label>
-              <label class="platform-chip" data-platform="instagram">
-                <span class="platform-icon">📸</span> Instagram
-                <input type="checkbox" />
-              </label>
-              <label class="platform-chip" data-platform="tiktok">
-                <span class="platform-icon">🎵</span> TikTok
-                <input type="checkbox" />
-              </label>
-              <label class="platform-chip" data-platform="threads">
-                <span class="platform-icon">🧵</span> Threads
-                <input type="checkbox" />
-              </label>
-            </div>
-
+            <div class="platform-toggles" id="platform-toggles"></div>
             <div class="compose-actions">
               <span class="char-count" id="char-count">0 / 300</span>
               <button class="btn btn-primary" id="btn-post" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
                 Post
               </button>
             </div>
           </div>
-
           <div id="post-feedback" class="feedback"></div>
         </div>
       </section>
 
-      <!-- History View -->
+      <!-- History -->
       <section id="view-history" class="view hidden">
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">Post history</h2>
-          </div>
+        <div class="card"><div class="card-header"><h2 class="card-title">Post history</h2></div>
           <div id="history-list" class="history-list">
-            <div class="empty-state">
-              <div class="empty-state-icon">📝</div>
-              <p class="empty-state-text">Your posts will appear here after you publish.</p>
-            </div>
+            <div class="empty-state"><div class="empty-state-icon">📝</div><p class="empty-state-text">Your posts will appear here.</p></div>
           </div>
         </div>
       </section>
 
-      <!-- Accounts View -->
+      <!-- Accounts -->
       <section id="view-accounts" class="view hidden">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2 class="card-title">Connected accounts</h2>
-              <p class="card-subtitle">Connect your social profiles to start cross-posting.</p>
-            </div>
-          </div>
-          <div class="account-list" id="account-list">
-            <!-- Populated by JS -->
-          </div>
+        <div class="card"><div class="card-header"><div><h2 class="card-title">Connected accounts</h2><p class="card-subtitle">Connect your profiles to start cross-posting.</p></div></div>
+          <div class="account-list" id="account-list"></div>
         </div>
       </section>
 
-      <!-- API Docs View -->
+      <!-- API Docs -->
       <section id="view-docs" class="view hidden">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2 class="card-title">API Reference</h2>
-              <p class="card-subtitle">Use the cnxt-to-post API from your own apps.</p>
-            </div>
-          </div>
-
-          <div style="display:flex;flex-direction:column;gap:24px;margin-top:8px;">
-            <div>
-              <h3 style="margin-bottom:8px;">Authentication</h3>
-              <p class="text-sm text-muted" style="margin-bottom:8px;">All API requests require a Supabase JWT in the Authorization header.</p>
-              <code style="display:block;background:var(--bg);padding:12px 16px;border-radius:var(--radius-sm);font-size:0.8125rem;font-family:monospace;overflow-x:auto;">
-                Authorization: Bearer &lt;supabase-access-token&gt;
-              </code>
-            </div>
-
-            <div>
-              <h3 style="margin-bottom:8px;">POST /api/post</h3>
-              <p class="text-sm text-muted" style="margin-bottom:8px;">Publish to one or more platforms simultaneously.</p>
-              <code style="display:block;background:var(--bg);padding:12px 16px;border-radius:var(--radius-sm);font-size:0.8125rem;font-family:monospace;overflow-x:auto;white-space:pre-wrap;">{
-  "platforms": ["bluesky", "linkedin"],
-  "text": "Hello world!",
-  "mediaUrls": ["https://example.com/photo.jpg"],
-  "replyTo": "tweet-id-here"
-}</code>
-            </div>
-
-            <div>
-              <h3 style="margin-bottom:8px;">GET /api/metrics/:platform/:postId</h3>
-              <p class="text-sm text-muted" style="margin-bottom:8px;">Retrieve engagement metrics for a post.</p>
-              <code style="display:block;background:var(--bg);padding:12px 16px;border-radius:var(--radius-sm);font-size:0.8125rem;font-family:monospace;">
-                GET /api/metrics/bluesky/abc123
-              </code>
-            </div>
-
-            <div>
-              <h3 style="margin-bottom:8px;">Supported platforms</h3>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                <span class="history-platform-badge">bluesky</span>
-                <span class="history-platform-badge">x</span>
-                <span class="history-platform-badge">linkedin</span>
-                <span class="history-platform-badge">facebook</span>
-                <span class="history-platform-badge">instagram</span>
-                <span class="history-platform-badge">threads</span>
-                <span class="history-platform-badge">tiktok</span>
-              </div>
-            </div>
+        <div class="card"><div class="card-header"><div><h2 class="card-title">API Reference</h2><p class="card-subtitle">Use the cnxt-to-post API from your own apps.</p></div></div>
+          <div style="display:flex;flex-direction:column;gap:20px;margin-top:8px;">
+            <div><h3>Auth</h3><code style="display:block;background:var(--bg);padding:12px 16px;border-radius:6px;font-size:0.8125rem;font-family:monospace;">Authorization: Bearer &lt;supabase-access-token&gt;</code></div>
+            <div><h3>POST /api/post</h3><code style="display:block;background:var(--bg);padding:12px 16px;border-radius:6px;font-size:0.8125rem;font-family:monospace;white-space:pre-wrap;">{ "platforms": ["bluesky","threads"], "text": "Hello!" }</code></div>
+            <div><h3>GET /api/metrics/:platform/:postId</h3></div>
+            <div><h3>Platforms</h3><div style="display:flex;flex-wrap:wrap;gap:4px;"><span class="history-platform-badge">bluesky</span><span class="history-platform-badge">x</span><span class="history-platform-badge">linkedin</span><span class="history-platform-badge">facebook</span><span class="history-platform-badge">instagram</span><span class="history-platform-badge">threads</span><span class="history-platform-badge">tiktok</span></div></div>
           </div>
         </div>
       </section>
     </main>
   </div>
-
   <script type="module" src="./js/dashboard.js"></script>
 </body>
 </html>

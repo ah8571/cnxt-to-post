@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "cnxt to post",
+    "slug": "cnxt-to-post-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "cnxt-to-post",
+    "splash": {
+      "backgroundColor": "#fafbfc"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "to.cnxt.post",
+      "versionCode": 1
+    },
+    "ios": {
+      "bundleIdentifier": "to.cnxt.post"
+    },
+    "extra": {
+      "eas": { "projectId": "" }
+    }
+  }
+}

@@ -1,12 +1,3 @@
-## Google Search Console — How to Submit
-
-
-https://hire.cnxt.to/	https://hire.cnxt.to/sitemap.xml
-
-
-
-Getting credentials
-
 
 ## Auth cheat sheet
 
