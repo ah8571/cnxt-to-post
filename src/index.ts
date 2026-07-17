@@ -70,6 +70,11 @@ export default {
       return new Response("ok", { status: 200 });
     }
 
+    // --- Cron: process scheduled posts ---
+    if (request.headers.get("X-Cron-Trigger") === "process-scheduled") {
+      return handleCron(env);
+    }
+
     // --- API routes ---
     if (url.pathname.startsWith("/api/")) {
       return handleApi(request, env, url, origin);
@@ -93,6 +98,33 @@ async function handleApi(
   // --- GET /api/profiles — list connected platform profiles ---
   if (url.pathname === "/api/profiles" && request.method === "GET") {
     return handleProfiles(request, env, origin, h);
+  }
+
+  // --- POST /api/schedule — schedule a post for later ---
+  if (url.pathname === "/api/schedule" && request.method === "POST") {
+    return handleSchedule(request, env, origin, h);
+  }
+
+  // --- GET /api/scheduled — list scheduled posts ---
+  if (url.pathname === "/api/scheduled" && request.method === "GET") {
+    return handleScheduled(request, env, origin, h);
+  }
+
+  // --- DELETE /api/scheduled/:id — cancel scheduled post ---
+  const scheduleMatch = url.pathname.match(/^\/api\/scheduled\/([a-f0-9-]+)$/);
+  if (scheduleMatch && request.method === "DELETE") {
+    return handleCancelSchedule(request, env, scheduleMatch[1], origin, h);
+  }
+
+  // --- GET /api/replies/:platform/:postId ---
+  const repliesMatch = url.pathname.match(/^\/api\/replies\/([a-z]+)\/(.+)$/);
+  if (repliesMatch && request.method === "GET") {
+    return handleReplies(request, env, repliesMatch[1] as Platform, repliesMatch[2], origin, h);
+  }
+
+  // --- POST /api/reply ---
+  if (url.pathname === "/api/reply" && request.method === "POST") {
+    return handleReply(request, env, origin, h);
   }
 
   // --- POST /api/post ---
@@ -260,6 +292,158 @@ async function postToPlatform(
     default:
       return { platform, success: false, error: `Unknown platform: ${platform}` };
   }
+}
+
+/**
+ * POST /api/schedule — Schedule a post for future publishing.
+ */
+async function handleSchedule(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+
+  let body: { platforms: Platform[]; text: string; scheduledAt: string; mediaUrls?: string[] };
+  try { body = (await request.json()) as any; } catch { return errorResponse("Invalid JSON", 400, origin); }
+
+  if (!body.platforms?.length) return errorResponse("At least one platform required", 400, origin);
+  if (!body.text?.trim()) return errorResponse("Text required", 400, origin);
+  if (!body.scheduledAt) return errorResponse("scheduledAt (ISO timestamp) required", 400, origin);
+
+  const scheduledAt = new Date(body.scheduledAt);
+  if (isNaN(scheduledAt.getTime())) return errorResponse("Invalid scheduledAt date", 400, origin);
+  if (scheduledAt <= new Date()) return errorResponse("scheduledAt must be in the future", 400, origin);
+
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    return errorResponse("Scheduling requires SUPABASE_SERVICE_ROLE_KEY", 501, origin);
+  }
+
+  try {
+    const res = await fetch(`${env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co"}/rest/v1/scheduled_posts`, {
+      method: "POST",
+      headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ user_id: user.sub, text: body.text, platforms: body.platforms, media_urls: body.mediaUrls || [], scheduled_at: body.scheduledAt }),
+    });
+    if (!res.ok) return errorResponse("Failed to schedule post", 500, origin);
+    const [scheduled] = (await res.json()) as any[];
+    return json({ id: scheduled.id, scheduledAt: scheduled.scheduled_at, platforms: scheduled.platforms }, 201, headers);
+  } catch { return errorResponse("Scheduling failed", 500, origin); }
+}
+
+/**
+ * GET /api/scheduled — List user's scheduled posts.
+ */
+async function handleScheduled(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return json([], 200, headers);
+
+  try {
+    const res = await fetch(
+      `${env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co"}/rest/v1/scheduled_posts?user_id=eq.${user.sub}&status=eq.pending&order=scheduled_at.asc`,
+      { headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` } }
+    );
+    const posts = (await res.json()) as any[];
+    return json(posts.map((p: any) => ({ id: p.id, text: p.text, platforms: p.platforms, scheduledAt: p.scheduled_at, createdAt: p.created_at })), 200, headers);
+  } catch { return json([], 200, headers); }
+}
+
+/**
+ * DELETE /api/scheduled/:id — Cancel a scheduled post.
+ */
+async function handleCancelSchedule(
+  request: Request,
+  env: Env,
+  id: string,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    await fetch(`${env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co"}/rest/v1/scheduled_posts?id=eq.${id}&user_id=eq.${user.sub}`, {
+      method: "DELETE", headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+    });
+    return json({ deleted: true }, 200, headers);
+  } catch { return errorResponse("Cancel failed", 500, origin); }
+}
+
+/**
+ * GET /api/replies/:platform/:postId
+ */
+async function handleReplies(
+  request: Request, env: Env, platform: Platform, postId: string, origin: string, headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+
+  if (platform === "bluesky" && env.BLUESKY_HANDLE && env.BLUESKY_PASSWORD) {
+    try {
+      const session = await createBlueskySession(env.BLUESKY_HANDLE, env.BLUESKY_PASSWORD);
+      const uri = `at://${session.did}/app.bsky.feed.post/${postId}`;
+      const res = await fetch(`https://bsky.social/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=1`, {
+        headers: { Authorization: `Bearer ${session.accessJwt}` },
+      });
+      const data = (await res.json()) as any;
+      const replies = (data.thread?.replies ?? []).map((r: any) => ({
+        id: r.post?.uri?.split("/").pop() || "", text: r.post?.record?.text || "",
+        author: r.post?.author?.handle || "", createdAt: r.post?.record?.createdAt || "",
+      }));
+      return json(replies, 200, headers);
+    } catch { return json([], 200, headers); }
+  }
+  return json([], 200, headers);
+}
+
+/**
+ * POST /api/reply — Reply to a post.
+ */
+async function handleReply(
+  request: Request, env: Env, origin: string, headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+
+  let body: { platform: Platform; postId: string; text: string };
+  try { body = (await request.json()) as any; } catch { return errorResponse("Invalid JSON", 400, origin); }
+  if (!body.text?.trim()) return errorResponse("Text required", 400, origin);
+
+  if (body.platform === "bluesky" && env.BLUESKY_HANDLE && env.BLUESKY_PASSWORD) {
+    try {
+      const session = await createBlueskySession(env.BLUESKY_HANDLE, env.BLUESKY_PASSWORD);
+      const parentUri = `at://${session.did}/app.bsky.feed.post/${body.postId}`;
+      const now = new Date().toISOString();
+      const res = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
+        method: "POST", headers: { Authorization: `Bearer ${session.accessJwt}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ repo: session.did, collection: "app.bsky.feed.post",
+          record: { $type: "app.bsky.feed.post", text: body.text, createdAt: now,
+            reply: { root: { uri: parentUri, cid: "" }, parent: { uri: parentUri, cid: "" } } } }),
+      });
+      const data = (await res.json()) as any;
+      if (!res.ok) return errorResponse("Reply failed", 500, origin);
+      return json({ id: data.uri?.split("/").pop(), platform: "bluesky" }, 201, headers);
+    } catch { return errorResponse("Reply failed", 500, origin); }
+  }
+  return errorResponse(`Replies not yet supported for ${body.platform}`, 501, origin);
+}
+
+async function createBlueskySession(handle: string, password: string) {
+  const res = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: handle, password }),
+  });
+  if (!res.ok) throw new Error("Bluesky auth failed");
+  return (await res.json()) as { accessJwt: string; did: string };
 }
 
 /**
