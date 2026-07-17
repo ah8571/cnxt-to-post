@@ -20,7 +20,7 @@ const PLATFORMS = [
 
 // ── State ──
 let session = null;
-let connectedPlatforms = new Set();
+let connectedProfiles = []; // { platform, label, handle, id }[]
 let postHistory = [];
 let currentView = "compose";
 
@@ -41,7 +41,21 @@ async function refreshAuth() {
     const { data } = await supabase.auth.getSession();
     session = data.session;
   } catch { session = null; }
+  await fetchProfiles();
   renderAuthUI();
+}
+
+async function fetchProfiles() {
+  if (!session?.access_token) { connectedProfiles = []; return; }
+  try {
+    const res = await fetch(`${API_BASE}/api/profiles`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const data = await res.json();
+    connectedProfiles = data.profiles || [];
+  } catch {
+    connectedProfiles = [];
+  }
 }
 
 function renderAuthUI() {
@@ -72,7 +86,7 @@ $("#btn-sign-out").addEventListener("click", async () => {
   await supabase.auth.signOut();
   await clearSharedSession();
   session = null;
-  connectedPlatforms.clear();
+  connectedProfiles = [];
   renderAuthUI();
   renderPlatformChips();
 });
@@ -102,11 +116,11 @@ $$(".nav-link").forEach((link) => {
 
 function renderPlatformChips() {
   const container = $("#platform-toggles");
+  const connectedSet = new Set(connectedProfiles.map((p) => p.platform));
   container.innerHTML = PLATFORMS.map((p) => {
-    const connected = connectedPlatforms.has(p.key);
-    const cls = connected ? "selected" : "";
-    return `<label class="platform-chip ${cls}" data-platform="${p.key}">
-      ${p.name}
+    const connected = connectedSet.has(p.key);
+    return `<label class="platform-chip ${connected ? "selected" : ""}" data-platform="${p.key}">
+      ${p.name}${connected ? ` (${connectedProfiles.filter((cp) => cp.platform === p.key).length})` : ""}
       <input type="checkbox" ${connected ? "checked" : ""} />
     </label>`;
   }).join("");
@@ -216,14 +230,23 @@ function fmtDate(iso) {
 // ── Accounts & OAuth ──
 
 function renderAccounts() {
+  const platformMap = new Map<string, typeof connectedProfiles>();
+  for (const p of connectedProfiles) {
+    if (!platformMap.has(p.platform)) platformMap.set(p.platform, []);
+    platformMap.get(p.platform)!.push(p);
+  }
+
   $("#account-list").innerHTML = PLATFORMS.map((p) => {
-    const connected = connectedPlatforms.has(p.key);
+    const profiles = platformMap.get(p.key) || [];
+    const count = profiles.length;
     return `<div class="account-item">
       <div class="account-item-info">
         <div class="account-item-name">${p.name}</div>
-        <div class="account-item-status${connected ? " connected" : ""}">${connected ? "Connected" : p.note || "Not connected"}</div>
+        <div class="account-item-status${count ? " connected" : ""}">
+          ${count ? `${count} profile${count > 1 ? "s" : ""} connected${profiles[0]?.handle ? ` · ${profiles.map((pp) => pp.handle || pp.label).join(", ")}` : ""}` : p.note || "Not connected"}
+        </div>
       </div>
-      <button class="btn btn-sm ${connected ? "btn-ghost" : "btn-secondary"}" data-connect="${p.key}">${connected ? "Reconnect" : "Connect"}</button>
+      <button class="btn btn-sm ${count ? "btn-ghost" : "btn-secondary"}" data-connect="${p.key}">${count ? "+ Add" : "Connect"}</button>
     </div>`;
   }).join("");
 
@@ -236,20 +259,18 @@ function connectPlatform(key) {
   const platform = PLATFORMS.find((p) => p.key === key);
   if (!platform) return;
 
-  // For now, Bluesky uses App Password (manual entry), others need OAuth
   if (key === "bluesky") {
-    const handle = prompt("Enter your Bluesky handle (e.g. you.bsky.social):");
-    const password = prompt("Enter your Bluesky App Password (from bsky.app/settings/app-passwords):");
+    const label = prompt("Profile name (e.g. 'Personal' or 'Company'):", "Personal");
+    if (!label) return;
+    const handle = prompt("Bluesky handle (e.g. you.bsky.social):");
+    const password = prompt("App Password (from bsky.app/settings/app-passwords):");
     if (handle && password) {
-      // Store locally for demo — in production, these go to the Worker as user-specific secrets
-      connectedPlatforms.add(key);
+      connectedProfiles.push({ platform: key, label, handle, id: crypto.randomUUID() });
       renderAccounts();
       renderPlatformChips();
-      alert("Bluesky connected for this session! (Full OAuth coming soon)");
     }
   } else {
-    // OAuth platforms — redirect to external auth
-    alert(`${platform.name} OAuth flow will be available once the developer app is registered.\n\nFor now, you can test with Bluesky (App Password, no registration needed).`);
+    alert(`${platform.name} OAuth will be available once the developer app is registered.\n\nSupports multiple profiles (personal + company pages) per platform.`);
   }
 }
 

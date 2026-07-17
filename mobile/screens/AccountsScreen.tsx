@@ -3,13 +3,13 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "rea
 import { supabase } from "../lib/supabase";
 
 const PLATFORMS = [
-  { key: "bluesky", name: "Bluesky", icon: "🦋", note: "App Password — no registration needed" },
-  { key: "x", name: "X (Twitter)", icon: "𝕏", note: "BYOK or credits required" },
-  { key: "linkedin", name: "LinkedIn", icon: "💼" },
-  { key: "facebook", name: "Facebook", icon: "📘" },
-  { key: "instagram", name: "Instagram", icon: "📸" },
-  { key: "threads", name: "Threads", icon: "🧵" },
-  { key: "tiktok", name: "TikTok", icon: "🎵", note: "Content Posting API approval required" },
+  { key: "bluesky", name: "Bluesky", note: "App Password — no registration needed" },
+  { key: "x", name: "X (Twitter)", note: "BYOK or credits required" },
+  { key: "linkedin", name: "LinkedIn", note: "Personal + company pages supported" },
+  { key: "facebook", name: "Facebook", note: "Personal + business pages supported" },
+  { key: "instagram", name: "Instagram", note: "Professional account required" },
+  { key: "threads", name: "Threads", note: "Text posts supported" },
+  { key: "tiktok", name: "TikTok", note: "Content Posting API approval required" },
 ];
 
 export default function AccountsScreen() {
@@ -22,7 +22,6 @@ export default function AccountsScreen() {
       <Text style={s.heading}>Connect your social profiles to start cross-posting.</Text>
       {PLATFORMS.map((p) => (
         <View key={p.key} style={s.row}>
-          <Text style={s.icon}>{p.icon}</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.name}>{p.name}</Text>
             <Text style={s.status}>{p.note || "Not connected"}</Text>

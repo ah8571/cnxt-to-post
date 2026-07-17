@@ -10,13 +10,13 @@ import { supabase } from "../lib/supabase";
 
 const API_BASE = "https://post.cnxt.to";
 const PLATFORMS = [
-  { key: "bluesky", name: "Bluesky", icon: "🦋" },
-  { key: "x", name: "X", icon: "𝕏" },
-  { key: "linkedin", name: "LinkedIn", icon: "💼" },
-  { key: "facebook", name: "Facebook", icon: "📘" },
-  { key: "instagram", name: "Instagram", icon: "📸" },
-  { key: "threads", name: "Threads", icon: "🧵" },
-  { key: "tiktok", name: "TikTok", icon: "🎵" },
+  { key: "bluesky", name: "Bluesky" },
+  { key: "x", name: "X" },
+  { key: "linkedin", name: "LinkedIn" },
+  { key: "facebook", name: "Facebook" },
+  { key: "instagram", name: "Instagram" },
+  { key: "threads", name: "Threads" },
+  { key: "tiktok", name: "TikTok" },
 ];
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -83,7 +83,7 @@ export default function ComposeScreen() {
             <TouchableOpacity key={p.key} style={[s.chip, selected.has(p.key) && s.chipSelected]}
               onPress={() => toggle(p.key)}>
               <Text style={[s.chipText, selected.has(p.key) && s.chipTextSelected]}>
-                {p.icon} {p.name}
+                {p.name}
               </Text>
             </TouchableOpacity>
           ))}
