@@ -7,42 +7,23 @@ import { postToInstagram, getInstagramMetrics } from "./platforms/instagram";
 import { postToTikTok, getTikTokMetrics } from "./platforms/tiktok";
 import { postToX, deleteFromX, getXMetrics } from "./platforms/x";
 import { postToThreads, getThreadsMetrics } from "./platforms/threads";
+import { fetchUserTokens, findToken, listConnectedProfiles, type PlatformToken } from "./tokens";
 
 export interface Env {
   SUPABASE_JWT_SECRET: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;  // for querying platform_tokens
+  SUPABASE_URL?: string;
 
-  // Bluesky
-  BLUESKY_HANDLE?: string;
-  BLUESKY_PASSWORD?: string;
+  // Fallback env vars (used when SUPABASE_SERVICE_ROLE_KEY is not set — single-user mode)
+  BLUESKY_HANDLE?: string;  BLUESKY_PASSWORD?: string;
+  LINKEDIN_ACCESS_TOKEN?: string;  LINKEDIN_AUTHOR?: string;
+  FACEBOOK_ACCESS_TOKEN?: string;  FACEBOOK_PAGE_ID?: string;
+  INSTAGRAM_ACCESS_TOKEN?: string;  INSTAGRAM_USER_ID?: string;
+  TIKTOK_ACCESS_TOKEN?: string;  TIKTOK_OPEN_ID?: string;
+  THREADS_ACCESS_TOKEN?: string;  THREADS_USER_ID?: string;
+  X_CONSUMER_KEY?: string;  X_CONSUMER_KEY_SECRET?: string;
+  X_ACCESS_TOKEN?: string;  X_ACCESS_TOKEN_SECRET?: string;  X_BEARER_TOKEN?: string;
 
-  // LinkedIn
-  LINKEDIN_ACCESS_TOKEN?: string;
-  LINKEDIN_AUTHOR?: string;
-
-  // Facebook
-  FACEBOOK_ACCESS_TOKEN?: string;
-  FACEBOOK_PAGE_ID?: string;
-
-  // Instagram
-  INSTAGRAM_ACCESS_TOKEN?: string;
-  INSTAGRAM_USER_ID?: string;
-
-  // TikTok
-  TIKTOK_ACCESS_TOKEN?: string;
-  TIKTOK_OPEN_ID?: string;
-
-  // Threads
-  THREADS_ACCESS_TOKEN?: string;
-  THREADS_USER_ID?: string;
-
-  // X (Twitter) — OAuth 1.0a
-  X_CONSUMER_KEY?: string;
-  X_CONSUMER_KEY_SECRET?: string;
-  X_ACCESS_TOKEN?: string;
-  X_ACCESS_TOKEN_SECRET?: string;
-  X_BEARER_TOKEN?: string; // for reading metrics
-
-  // KV for rate limiting (optional — set up KV namespace and add to wrangler.toml)
   RATE_LIMITS?: KVNamespace;
 }
 
@@ -109,6 +90,11 @@ async function handleApi(
 ): Promise<Response> {
   const h = corsHeaders(origin);
 
+  // --- GET /api/profiles — list connected platform profiles ---
+  if (url.pathname === "/api/profiles" && request.method === "GET") {
+    return handleProfiles(request, env, origin, h);
+  }
+
   // --- POST /api/post ---
   if (url.pathname === "/api/post" && request.method === "POST") {
     return handlePost(request, env, origin, h);
@@ -121,6 +107,30 @@ async function handleApi(
   }
 
   return errorResponse("Not found", 404, origin);
+}
+
+/**
+ * GET /api/profiles — list the user's connected platform profiles.
+ */
+async function handleProfiles(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    return json({ profiles: [], mode: "single-user" }, 200, headers);
+  }
+
+  try {
+    const tokens = await fetchUserTokens(user.sub, env.SUPABASE_SERVICE_ROLE_KEY);
+    return json({ profiles: listConnectedProfiles(tokens), mode: "multi-user" }, 200, headers);
+  } catch {
+    return json({ profiles: [], mode: "error" }, 200, headers);
+  }
 }
 
 /**
@@ -164,9 +174,17 @@ async function handlePost(
     await env.RATE_LIMITS.put(rateKey, String(current + 1), { expirationTtl: 60 });
   }
 
+  // Fetch per-user platform tokens (or fall back to env vars)
+  let userTokens: PlatformToken[] = [];
+  if (env.SUPABASE_SERVICE_ROLE_KEY) {
+    userTokens = await fetchUserTokens(user.sub, env.SUPABASE_SERVICE_ROLE_KEY);
+  }
+
   // Post to each platform in parallel
   const results: PlatformPostResult[] = await Promise.all(
-    body.platforms.map((platform) => postToPlatform(platform, body.text, env, body.mediaUrls, body.replyTo))
+    body.platforms.map((platform) =>
+      postToPlatform(platform, body.text, env, body.mediaUrls, body.replyTo, userTokens)
+    )
   );
 
   const response: PostResponse = {
@@ -186,58 +204,57 @@ async function postToPlatform(
   text: string,
   env: Env,
   mediaUrls?: string[],
-  replyTo?: string
+  replyTo?: string,
+  userTokens?: PlatformToken[]
 ): Promise<PlatformPostResult> {
+  // Try per-user token first, fall back to env vars
+  const token = userTokens ? findToken(userTokens, platform) : null;
+
   switch (platform) {
     case "bluesky": {
-      if (!env.BLUESKY_HANDLE || !env.BLUESKY_PASSWORD) {
-        return { platform, success: false, error: "Bluesky not configured" };
-      }
-      return postToBluesky(text, env.BLUESKY_HANDLE, env.BLUESKY_PASSWORD, mediaUrls);
+      const handle = token?.platform_handle || env.BLUESKY_HANDLE;
+      const password = token?.access_token || env.BLUESKY_PASSWORD;
+      if (!handle || !password) return { platform, success: false, error: "Bluesky not connected" };
+      return postToBluesky(text, handle, password, mediaUrls);
     }
-
     case "linkedin": {
-      if (!env.LINKEDIN_ACCESS_TOKEN || !env.LINKEDIN_AUTHOR) {
-        return { platform, success: false, error: "LinkedIn not configured" };
-      }
-      return postToLinkedIn(text, env.LINKEDIN_ACCESS_TOKEN, env.LINKEDIN_AUTHOR);
+      const accessToken = token?.access_token || env.LINKEDIN_ACCESS_TOKEN;
+      const author = token?.platform_user_id || env.LINKEDIN_AUTHOR;
+      if (!accessToken || !author) return { platform, success: false, error: "LinkedIn not connected" };
+      return postToLinkedIn(text, accessToken, author);
     }
-
     case "facebook": {
-      if (!env.FACEBOOK_ACCESS_TOKEN || !env.FACEBOOK_PAGE_ID) {
-        return { platform, success: false, error: "Facebook not configured" };
-      }
-      return postToFacebook(text, env.FACEBOOK_ACCESS_TOKEN, env.FACEBOOK_PAGE_ID);
+      const accessToken = token?.access_token || env.FACEBOOK_ACCESS_TOKEN;
+      const pageId = (token?.metadata as any)?.page_id || env.FACEBOOK_PAGE_ID;
+      if (!accessToken || !pageId) return { platform, success: false, error: "Facebook not connected" };
+      return postToFacebook(text, accessToken, pageId);
     }
-
     case "instagram": {
-      if (!env.INSTAGRAM_ACCESS_TOKEN || !env.INSTAGRAM_USER_ID) {
-        return { platform, success: false, error: "Instagram not configured" };
-      }
-      return postToInstagram(text, env.INSTAGRAM_ACCESS_TOKEN, env.INSTAGRAM_USER_ID, mediaUrls);
+      const accessToken = token?.access_token || env.INSTAGRAM_ACCESS_TOKEN;
+      const igUserId = (token?.metadata as any)?.ig_user_id || env.INSTAGRAM_USER_ID;
+      if (!accessToken || !igUserId) return { platform, success: false, error: "Instagram not connected" };
+      return postToInstagram(text, accessToken, igUserId, mediaUrls);
     }
-
     case "tiktok": {
-      if (!env.TIKTOK_ACCESS_TOKEN || !env.TIKTOK_OPEN_ID) {
-        return { platform, success: false, error: "TikTok not configured" };
-      }
-      return postToTikTok(text, env.TIKTOK_ACCESS_TOKEN, env.TIKTOK_OPEN_ID, mediaUrls);
+      const accessToken = token?.access_token || env.TIKTOK_ACCESS_TOKEN;
+      const openId = token?.platform_user_id || env.TIKTOK_OPEN_ID;
+      if (!accessToken || !openId) return { platform, success: false, error: "TikTok not connected" };
+      return postToTikTok(text, accessToken, openId, mediaUrls);
     }
-
     case "threads": {
-      if (!env.THREADS_ACCESS_TOKEN || !env.THREADS_USER_ID) {
-        return { platform, success: false, error: "Threads not configured" };
-      }
-      return postToThreads(text, env.THREADS_ACCESS_TOKEN, env.THREADS_USER_ID, mediaUrls);
+      const accessToken = token?.access_token || env.THREADS_ACCESS_TOKEN;
+      const userId = (token?.metadata as any)?.threads_user_id || env.THREADS_USER_ID;
+      if (!accessToken || !userId) return { platform, success: false, error: "Threads not connected" };
+      return postToThreads(text, accessToken, userId, mediaUrls);
     }
-
     case "x": {
-      if (!env.X_CONSUMER_KEY || !env.X_CONSUMER_KEY_SECRET ||
-          !env.X_ACCESS_TOKEN || !env.X_ACCESS_TOKEN_SECRET) {
-        return { platform, success: false, error: "X (Twitter) not configured — OAuth 1.0a keys required" };
-      }
-      return postToX(text, env.X_CONSUMER_KEY, env.X_CONSUMER_KEY_SECRET,
-        env.X_ACCESS_TOKEN, env.X_ACCESS_TOKEN_SECRET, replyTo);
+      const consumerKey = env.X_CONSUMER_KEY;
+      const consumerSecret = env.X_CONSUMER_KEY_SECRET;
+      const accessToken = token?.access_token || env.X_ACCESS_TOKEN;
+      const accessSecret = (token?.metadata as any)?.access_secret || env.X_ACCESS_TOKEN_SECRET;
+      if (!consumerKey || !consumerSecret || !accessToken || !accessSecret)
+        return { platform, success: false, error: "X not configured — OAuth 1.0a keys required" };
+      return postToX(text, consumerKey, consumerSecret, accessToken, accessSecret, replyTo);
     }
 
     default:
