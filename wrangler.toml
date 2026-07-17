@@ -2,10 +2,14 @@ name = "cnxt-to-post"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
-# Routes — API lives on post.cnxt.to
-routes = [
-  { pattern = "post.cnxt.to/*", zone_name = "cnxt.to" }
-]
+# Routes: Worker only handles API paths. Dashboard is served by Cloudflare Pages.
+# After deploy, add a Worker Route in Cloudflare Dashboard:
+#   post.cnxt.to/api/*
+# This avoids the Worker intercepting the Pages-served dashboard at the root.
+#
+# routes = [
+#   { pattern = "post.cnxt.to/api/*", zone_name = "cnxt.to" }
+# ]
 
 # KV for rate limiting counters
 [[kv_namespaces]]
