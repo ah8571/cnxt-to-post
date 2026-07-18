@@ -2,6 +2,10 @@
 
 Bare essentials per platform for building cross-platform posting/reading scripts.
 
+## Proxy connection
+
+https://info.bundle.social/welcome
+
 ---
 
 ## X (Twitter)

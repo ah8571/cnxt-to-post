@@ -17,9 +17,9 @@ export interface Env {
   // Encryption key for token storage
   ENCRYPTION_KEY?: string;
 
-  // Third-party social API provider (e.g. Ayrshare) — wraps multiple platforms
+  // Third-party social API provider (Bundle.social)
   SOCIAL_API_PROVIDER_KEY?: string;
-  SOCIAL_API_PROVIDER_URL?: string;  // e.g. https://app.ayrshare.com/api
+  BUNDLE_TEAM_ID?: string;           // Bundle.social team ID for post routing
 
   // Environment name
   ENVIRONMENT?: string;
@@ -383,7 +383,8 @@ async function postToPlatform(
 }
 
 /**
- * Post via a third-party social API provider (e.g. Ayrshare) as fallback.
+ * Post via Bundle.social as fallback when direct platform keys aren't available.
+ * Maps our platform names to Bundle.social's platform format.
  */
 async function postViaProvider(
   platform: Platform,
@@ -391,37 +392,53 @@ async function postViaProvider(
   env: Env,
   mediaUrls?: string[]
 ): Promise<PlatformPostResult> {
-  if (!env.SOCIAL_API_PROVIDER_KEY || !env.SOCIAL_API_PROVIDER_URL) {
-    return { platform, success: false, error: "API provider not configured" };
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) {
+    return { platform, success: false, error: "Bundle.social not configured (set BUNDLE_TEAM_ID + SOCIAL_API_PROVIDER_KEY)" };
   }
 
+  // Map our platform names to Bundle.social's ALL CAPS format
+  const platformMap: Record<string, string> = {
+    bluesky: "BLUESKY", x: "TWITTER", linkedin: "LINKEDIN",
+    facebook: "FACEBOOK", instagram: "INSTAGRAM", threads: "THREADS",
+    tiktok: "TIKTOK",
+  };
+  const bsPlatform = platformMap[platform] || platform.toUpperCase();
+
   try {
-    const res = await fetch(`${env.SOCIAL_API_PROVIDER_URL}/post`, {
+    const now = new Date().toISOString();
+    const res = await fetch("https://api.bundle.social/api/v1/post", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${env.SOCIAL_API_PROVIDER_KEY}`,
+        "x-api-key": env.SOCIAL_API_PROVIDER_KEY,
       },
       body: JSON.stringify({
-        post: text,
-        platforms: [platform],
-        mediaUrls: mediaUrls || [],
+        teamId: env.BUNDLE_TEAM_ID,
+        title: text.slice(0, 80),
+        status: "SCHEDULED",
+        postDate: now,
+        socialAccountTypes: [bsPlatform],
+        data: {
+          [bsPlatform]: { text },
+        },
       }),
     });
 
     const data = (await res.json()) as any;
     if (!res.ok) {
-      return { platform, success: false, error: `Provider error: ${data.message || res.status}` };
+      return { platform, success: false, error: `Bundle error: ${data.message || res.status}` };
     }
 
+    // Extract permalink from externalData
+    const extData = data.externalData?.[bsPlatform];
     return {
       platform,
       success: true,
-      postId: data.id || data.postIds?.[0]?.id,
-      postUrl: data.postIds?.[0]?.postUrl || data.url,
+      postId: data.id,
+      postUrl: extData?.permalink || extData?.id,
     };
   } catch (e) {
-    return { platform, success: false, error: e instanceof Error ? e.message : "Provider error" };
+    return { platform, success: false, error: e instanceof Error ? e.message : "Bundle error" };
   }
 }
 
