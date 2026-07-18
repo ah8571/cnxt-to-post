@@ -141,6 +141,26 @@ async function handleApi(
     return handleBundleAnalytics(request, env, analyticsMatch[1], origin, h);
   }
 
+  // --- POST /api/comments/import — start Bundle comment import ---
+  if (url.pathname === "/api/comments/import" && request.method === "POST") {
+    return handleCommentImport(request, env, origin, h);
+  }
+
+  // --- GET /api/comments — get imported comments ---
+  if (url.pathname === "/api/comments" && request.method === "GET") {
+    return handleComments(request, env, url, origin, h);
+  }
+
+  // --- POST /api/media — proxy Bundle media upload ---
+  if (url.pathname === "/api/media" && request.method === "POST") {
+    return handleMediaUpload(request, env, origin, h);
+  }
+
+  // --- POST /api/import — start Bundle post history import ---
+  if (url.pathname === "/api/import" && request.method === "POST") {
+    return handlePostImport(request, env, origin, h);
+  }
+
   // --- POST /api/schedule — schedule a post for later ---
   if (url.pathname === "/api/schedule" && request.method === "POST") {
     return handleSchedule(request, env, origin, h);
@@ -371,6 +391,106 @@ async function handleBundleAnalytics(
   } catch {
     return json({ error: "Analytics unavailable" }, 502, headers);
   }
+}
+
+/**
+ * POST /api/comments/import — Start Bundle comment import for a post.
+ * Body: { postId, platform }
+ */
+async function handleCommentImport(
+  request: Request, env: Env, origin: string, headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) return errorResponse("Bundle not configured", 501, origin);
+
+  let body: { postId: string; platform: string };
+  try { body = (await request.json()) as any; } catch { return errorResponse("Invalid JSON", 400, origin); }
+
+  const bsPlatform = bundlePlatform(body.platform);
+  if (!bsPlatform) return errorResponse("Unknown platform", 400, origin);
+
+  try {
+    const res = await fetch("https://api.bundle.social/api/v1/comment/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": env.SOCIAL_API_PROVIDER_KEY },
+      body: JSON.stringify({ teamId: env.BUNDLE_TEAM_ID, postId: body.postId, socialAccountType: bsPlatform }),
+    });
+    return json(await res.json(), res.status, headers);
+  } catch { return json({ error: "Comment import failed" }, 502, headers); }
+}
+
+/**
+ * GET /api/comments — Get imported comments. ?postId=xxx&platform=yyy
+ */
+async function handleComments(
+  request: Request, env: Env, url: URL, origin: string, headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) return errorResponse("Bundle not configured", 501, origin);
+
+  const postId = url.searchParams.get("postId");
+  if (!postId) return errorResponse("postId required", 400, origin);
+
+  try {
+    const res = await fetch(
+      `https://api.bundle.social/api/v1/comment/import/comments?teamId=${env.BUNDLE_TEAM_ID}&postId=${postId}`,
+      { headers: { "x-api-key": env.SOCIAL_API_PROVIDER_KEY } }
+    );
+    return json(await res.json(), res.status, headers);
+  } catch { return json({ error: "Comments unavailable" }, 502, headers); }
+}
+
+/**
+ * POST /api/media — Proxy Bundle media upload from URL.
+ * Body: { url }
+ */
+async function handleMediaUpload(
+  request: Request, env: Env, origin: string, headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) return errorResponse("Bundle not configured", 501, origin);
+
+  let body: { url: string };
+  try { body = (await request.json()) as any; } catch { return errorResponse("Invalid JSON", 400, origin); }
+
+  try {
+    const res = await fetch("https://api.bundle.social/api/v1/upload/from-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": env.SOCIAL_API_PROVIDER_KEY },
+      body: JSON.stringify({ teamId: env.BUNDLE_TEAM_ID, url: body.url }),
+    });
+    return json(await res.json(), res.status, headers);
+  } catch { return json({ error: "Upload failed" }, 502, headers); }
+}
+
+/**
+ * POST /api/import — Start Bundle post history import.
+ * Body: { platform }
+ */
+async function handlePostImport(
+  request: Request, env: Env, origin: string, headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) return errorResponse("Bundle not configured", 501, origin);
+
+  let body: { platform: string };
+  try { body = (await request.json()) as any; } catch { return errorResponse("Invalid JSON", 400, origin); }
+
+  const bsPlatform = bundlePlatform(body.platform);
+  if (!bsPlatform) return errorResponse("Unknown platform", 400, origin);
+
+  try {
+    const res = await fetch("https://api.bundle.social/api/v1/post-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": env.SOCIAL_API_PROVIDER_KEY },
+      body: JSON.stringify({ teamId: env.BUNDLE_TEAM_ID, socialAccountType: bsPlatform }),
+    });
+    return json(await res.json(), res.status, headers);
+  } catch { return json({ error: "Import failed" }, 502, headers); }
 }
 
 /**

@@ -2,28 +2,11 @@
 
 Base URL: `https://post.cnxt.to`
 
-All endpoints require authentication via Supabase JWT. Your app gets this token when the user signs in through the shared cnxt auth system (`auth.cnxt.to`).
-
----
-
-## Authentication
-
-Include the Supabase access token in the `Authorization` header:
+Authenticate with a Supabase JWT in the `Authorization` header. Get a token by signing in through `auth.cnxt.to` (or any cnxt tool with shared auth).
 
 ```
 Authorization: Bearer <supabase-access-token>
 ```
-
-**Getting a token in the browser:**
-```js
-const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const { data } = await supabase.auth.getSession();
-const token = data.session?.access_token;
-```
-
-**Getting a token in a backend/script:**
-Use the Supabase service role key to generate tokens, or have the user sign in via the OAuth flow and pass you their access token.
 
 ---
 
@@ -31,68 +14,73 @@ Use the Supabase service role key to generate tokens, or have the user sign in v
 
 ### POST /api/post
 
-Publish content to one or more social platforms simultaneously.
+Publish to one or more platforms simultaneously.
 
-**Request:**
 ```json
 {
   "platforms": ["bluesky", "linkedin", "x"],
-  "text": "Hello world! This is my first cross-post.",
+  "text": "Hello world!",
   "mediaUrls": ["https://example.com/photo.jpg"],
-  "replyTo": "1883978684156510411"
+  "replyTo": "tweet-id-here"
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `platforms` | string[] | ✅ | Platforms to post to. Valid: `bluesky`, `x`, `linkedin`, `facebook`, `instagram`, `tiktok` |
-| `text` | string | ✅ | Post content. Max varies by platform (300 chars safe for all) |
-| `mediaUrls` | string[] | ❌ | Public URLs of images/videos to attach. Instagram requires at least one. |
-| `replyTo` | string | ❌ | For X: tweet ID to reply to |
+| Field | Required | Description |
+|---|---|---|
+| `platforms` | Yes | Array of: `bluesky`, `x`, `linkedin`, `facebook`, `instagram`, `threads`, `tiktok`, `youtube` |
+| `text` | Yes | Post content |
+| `mediaUrls` | No | Public image/video URLs |
+| `replyTo` | No | X tweet ID to reply to |
 
-**Response (200):**
+**Response:**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "postedAt": "2026-07-16T12:00:00.000Z",
+  "id": "uuid",
+  "postedAt": "2026-07-18T12:00:00Z",
   "results": [
-    {
-      "platform": "bluesky",
-      "success": true,
-      "postId": "3lbe2xz3zls2p",
-      "postUrl": "https://bsky.app/profile/user.bsky.social/post/3lbe2xz3zls2p"
-    },
-    {
-      "platform": "linkedin",
-      "success": true,
-      "postId": "urn:li:share:7234567890",
-      "postUrl": "https://www.linkedin.com/feed/update/urn:li:share:7234567890"
-    }
+    { "platform": "bluesky", "success": true, "postId": "abc", "postUrl": "https://..." },
+    { "platform": "linkedin", "success": false, "error": "LinkedIn not connected" }
   ]
 }
 ```
 
-**Error responses:**
-- `400` — Invalid body, missing platforms, or empty text
-- `401` — Missing or invalid JWT
-- `429` — Rate limit exceeded (30 posts/minute/user)
+---
+
+### POST /api/schedule
+
+Queue a post for future publishing via cron.
+
+```json
+{
+  "platforms": ["bluesky"],
+  "text": "Scheduled post",
+  "scheduledAt": "2026-07-20T09:00:00Z"
+}
+```
+
+---
+
+### GET /api/scheduled
+
+List pending scheduled posts.
+
+---
+
+### DELETE /api/scheduled/:id
+
+Cancel a scheduled post.
 
 ---
 
 ### GET /api/metrics/:platform/:postId
 
-Retrieve engagement metrics for a previously published post.
+Get engagement metrics for a post.
 
-**Path parameters:**
-- `platform` — One of: `bluesky`, `x`, `linkedin`, `facebook`, `instagram`, `tiktok`
-- `postId` — The platform-specific post ID returned when posting
-
-**Example:**
 ```
-GET /api/metrics/bluesky/3lbe2xz3zls2p
+GET /api/metrics/bluesky/abc123
 ```
 
-**Response (200):**
+**Response:**
 ```json
 {
   "platform": "bluesky",
@@ -104,86 +92,142 @@ GET /api/metrics/bluesky/3lbe2xz3zls2p
 }
 ```
 
-**Error responses:**
-- `401` — Missing or invalid JWT
-- `500` — Platform not configured on the server
+---
+
+### GET /api/profiles
+
+List connected platform profiles for the current user.
+
+---
+
+### GET /api/connect/:platform
+
+Get a Bundle.social portal URL to connect a social account.
+
+```
+GET /api/connect/linkedin
+→ { "url": "https://bundle.social/portal/..." }
+```
+
+---
+
+### GET /api/bundle-accounts
+
+List social accounts connected through Bundle.
+
+---
+
+### GET /api/analytics/:platform
+
+Proxy Bundle analytics. Query params:
+
+| Param | Description |
+|---|---|
+| `type` | `profile` (default) or `post` |
+| `postId` | Required when `type=post` |
+
+```
+GET /api/analytics/instagram?type=profile
+GET /api/analytics/facebook?type=post&postId=xxx
+```
+
+---
+
+### GET /api/replies/:platform/:postId
+
+Fetch replies to a post (Bluesky direct; other platforms via Bundle comments).
+
+---
+
+### POST /api/reply
+
+Reply to a post.
+
+```json
+{
+  "platform": "bluesky",
+  "postId": "abc123",
+  "text": "Thanks for sharing!"
+}
+```
+
+---
+
+### POST /api/comments/import
+
+Start Bundle comment import for a post.
+
+```json
+{
+  "postId": "post_123",
+  "platform": "instagram"
+}
+```
+
+---
+
+### GET /api/comments
+
+Get imported comments. Query: `?postId=xxx`
+
+---
+
+### POST /api/media
+
+Upload media via Bundle from a URL.
+
+```json
+{ "url": "https://example.com/photo.jpg" }
+```
+
+---
+
+### POST /api/import
+
+Start Bundle post history import for a platform.
+
+```json
+{ "platform": "linkedin" }
+```
 
 ---
 
 ### GET /health
 
-Health check — no auth required.
-
-**Response:** `200 OK` with body `ok`
+Health check. No auth required. Returns `ok`.
 
 ---
 
-## Platform-specific notes
+## Client examples
 
-### Bluesky
-- Auth: App Password (create at bsky.app/settings/app-passwords)
-- No API key registration needed
-- Media: Upload via blob API before attaching to post
+### Browser
 
-### X (Twitter)
-- Auth: OAuth 1.0a (4 keys: consumer key/secret + access token/secret)
-- **API is paid** — free tier limited to 1,500 posts/month
-- BYOK: Users provide their own API keys
-- Metrics use Bearer token (separate from OAuth 1.0a posting keys)
-
-### LinkedIn
-- Auth: OAuth 2.0 Bearer token
-- Requires `Community Management API` product on your LinkedIn app
-- Headers: `Linkedin-Version: YYYYMM`, `X-Restli-Protocol-Version: 2.0.0`
-
-### Facebook Pages
-- Auth: Page access token
-- Permissions: `pages_manage_posts`, `pages_read_engagement`
-- Graph API v25.0
-
-### Instagram
-- Auth: Same as Facebook (Meta app)
-- **Requires Professional account** (Business/Creator) connected to a Facebook Page
-- Two-step process: create media container → publish
-- Rate limit: ~100 posts per 24 hours
-
-### TikTok
-- Auth: OAuth 2.0 via Login Kit
-- **Content Posting API requires separate app review** by TikTok
-- Only video posting supported (no text-only or image posts)
-
----
-
-## Rate Limits
-
-| Limit | Value |
-|---|---|
-| Posts per minute per user | 30 |
-| Metrics reads per minute per user | 60 |
-
----
-
-## Reusing this API
-
-The cnxt-to-post API is designed to be called from any app — not just the official dashboard. Here's how to integrate it:
-
-### From a web app
 ```js
 const res = await fetch("https://post.cnxt.to/api/post", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${userAccessToken}`,
+    Authorization: `Bearer ${accessToken}`,
   },
-  body: JSON.stringify({
-    platforms: ["bluesky", "linkedin"],
-    text: "Cross-posted from my app!",
-  }),
+  body: JSON.stringify({ platforms: ["bluesky"], text: "Hello!" }),
 });
-const data = await res.json();
 ```
 
-### From a Cloudflare Worker
+### Node.js
+
+```js
+const res = await fetch("https://post.cnxt.to/api/post", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${process.env.CNXT_TOKEN}`,
+  },
+  body: JSON.stringify({ platforms: ["bluesky", "linkedin"], text }),
+});
+```
+
+### Cloudflare Worker
+
 ```ts
 const res = await fetch("https://post.cnxt.to/api/post", {
   method: "POST",
@@ -195,43 +239,26 @@ const res = await fetch("https://post.cnxt.to/api/post", {
 });
 ```
 
-### From Node.js
-```js
-const res = await fetch("https://post.cnxt.to/api/post", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${supabaseAccessToken}`,
-  },
-  body: JSON.stringify({ platforms: ["bluesky", "x"], text: "Hello!" }),
-});
-```
+---
+
+## Platform support
+
+| Platform | Post | Metrics | Replies | Notes |
+|---|---|---|---|---|
+| Bluesky | ✅ | ✅ | ✅ | App Password or Bundle |
+| X (Twitter) | ✅ | ✅ | Via Bundle | OAuth 1.0a or Bundle |
+| LinkedIn | ✅ | Via Bundle | Via Bundle | Bundle preferred |
+| Facebook | ✅ | Via Bundle | Via Bundle | Bundle preferred |
+| Instagram | ✅ | Via Bundle | Via Bundle | Media required |
+| Threads | ✅ | Via Bundle | Via Bundle | Text supported |
+| TikTok | ✅ | Via Bundle | Via Bundle | Video required |
+| YouTube | Via Bundle | Via Bundle | Via Bundle | Channel selection needed |
 
 ---
 
-## Architecture
+## Rate limits
 
-```
-Your App / Dashboard
-       │
-       │ HTTPS + JWT
-       ▼
-┌─────────────────────┐
-│  Cloudflare Worker   │  post.cnxt.to
-│  src/index.ts        │
-├─────────────────────┤
-│  /api/post           │  → platforms/*.ts
-│  /api/metrics        │  → platforms/*.ts
-│  /health             │
-├─────────────────────┤
-│  Auth: Supabase JWT  │
-│  Rate limit: KV      │
-│  Secrets: env vars   │
-└─────────────────────┘
-       │
-       ▼
-┌──────────────────────────────────────┐
-│         Platform APIs                 │
-│  Bluesky  │ X │ LinkedIn │ Meta │ TikTok │
-└──────────────────────────────────────┘
-```
+| Limit | Value |
+|---|---|
+| Posts per minute per user | 30 |
+| All other endpoints | 60/min |
