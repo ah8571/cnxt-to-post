@@ -1,36 +1,36 @@
 /* ── cnxt-to-post — Dark theme with grid pattern background ── */
 
 :root {
-  --bg: #0a0a0c;
-  --bg-alt: #111115;
-  --surface: #16161a;
-  --panel: rgba(22, 22, 26, 0.85);
-  --border: #252530;
-  --border-light: #1e1e28;
-  --text: #e4e4ed;
-  --text-secondary: #9898a8;
-  --text-muted: #686878;
+  --bg: #ffffff;
+  --bg-alt: #f8f8f6;
+  --surface: #ffffff;
+  --panel: rgba(255, 255, 255, 0.82);
+  --border: rgba(29, 27, 24, 0.09);
+  --border-light: rgba(29, 27, 24, 0.06);
+  --text: #1d1b18;
+  --text-secondary: #5f5647;
+  --text-muted: #8a8178;
 
-  --brand: #6b8cff;
-  --brand-dark: #5a78e8;
-  --brand-light: #8aa4ff;
-  --brand-soft: rgba(107, 140, 255, 0.12);
-  --brand-ring: rgba(107, 140, 255, 0.15);
+  --brand: #1d1b18;
+  --brand-dark: #000;
+  --brand-light: #3d3a35;
+  --brand-soft: rgba(29, 27, 24, 0.06);
+  --brand-ring: rgba(29, 27, 24, 0.1);
 
-  --success: #34d399;
-  --success-soft: rgba(52, 211, 153, 0.12);
-  --warning: #fbbf24;
-  --warning-soft: rgba(251, 191, 36, 0.12);
-  --error: #f87171;
-  --error-soft: rgba(248, 113, 113, 0.12);
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, 0.08);
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.08);
+  --error: #dc2626;
+  --error-soft: rgba(220, 38, 38, 0.08);
 
   --radius: 14px;
   --radius-lg: 20px;
   --radius-xl: 28px;
   --radius-sm: 8px;
   --transition: 150ms ease;
-  --shadow: 0 4px 24px rgba(0,0,0,0.4);
-  --shadow-lg: 0 12px 48px rgba(0,0,0,0.5);
+  --shadow: 0 20px 60px rgba(55, 34, 17, 0.12);
+  --shadow-lg: 0 24px 80px rgba(55, 34, 17, 0.16);
   --sidebar-width: 260px;
 }
 
@@ -66,8 +66,8 @@ body::before {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(29, 27, 24, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 27, 24, 0.07) 1px, transparent 1px);
   background-size: 44px 44px;
   z-index: 0;
 }
@@ -396,7 +396,7 @@ a:hover { text-decoration: underline; }
 
 /* ── HERO SECTION ── */
 .hero {
-  background: var(--bg-alt);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
   padding: 80px 24px;
   text-align: center;
