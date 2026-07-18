@@ -104,11 +104,10 @@
       <section id="view-welcome" class="view">
         <div class="hero">
           <div class="hero-content">
-            <div class="hero-badge">Free forever • No subscriptions</div>
-            <h1 class="hero-title">Post to everywhere.<br><span class="hero-title-gradient">From one place.</span></h1>
-            <p class="hero-description">
-              Compose once, publish to Bluesky, X, LinkedIn, Facebook, Instagram, Threads, and TikTok — simultaneously.
-            </p>
+            <div class="hero-badge">Free • No subscriptions</div>
+            <h1 class="hero-title"><span id="hero-line1"></span><span class="hero-cursor">|</span><br><span id="hero-line2" class="hero-title-gradient"></span></h1>
+            <p class="hero-description" id="hero-desc"></p>
+            <p class="hero-subline" id="hero-subline" style="display:none;font-size:0.9375rem;color:var(--text-muted);margin-bottom:24px;">Free API, web &amp; mobile app <span style="font-size:0.75rem;">(coming soon)</span></p>
             <div class="hero-actions">
               <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-primary btn-large">Get started free</a>
               <a href="https://github.com/ah8571/cnxt-to-post" class="btn btn-secondary btn-large">
@@ -470,6 +469,8 @@
 
   <script type="module" src="./js/dashboard.js"></script>
   <script>document.querySelector('.cnxt-footer-year').textContent = new Date().getFullYear();</script>
-<script>document.getElementById("btn-theme-toggle").addEventListener("click",()=>{const t=document.documentElement.dataset.theme==="dark"?"":"dark";document.documentElement.dataset.theme=t;localStorage.setItem("cnxt-theme",t)});(function(){const t=localStorage.getItem("cnxt-theme");if(t)document.documentElement.dataset.theme=t})();</script>
+<script>document.getElementById("btn-theme-toggle").addEventListener("click",()=>{const t=document.documentElement.dataset.theme==="dark"?"":"dark";document.documentElement.dataset.theme=t;localStorage.setItem("cnxt-theme",t)});(function(){const t=localStorage.getItem("cnxt-theme");if(t)document.documentElement.dataset.theme=t})();
+// Typing animation
+(function(){const L1="Post to everywhere.",L2="From one place.",D="Compose once, publish everywhere — simultaneously, if you want.";const e1=document.getElementById("hero-line1"),e2=document.getElementById("hero-line2"),ed=document.getElementById("hero-desc"),es=document.getElementById("hero-subline"),cur=document.querySelector(".hero-cursor");let s=0;function type(){const all=L1+L2+D;if(s<all.length){if(s<L1.length){e1.textContent+=all[s]}else if(s===L1.length){cur.remove();e2.textContent=""}else if(s<L1.length+1+L2.length){e2.textContent+=all[s]}else if(s===L1.length+1+L2.length){ed.textContent=""}else{ed.textContent+=all[s]}s++;setTimeout(type,28+Math.random()*22)}else{if(es)es.style.display="block"}}setTimeout(type,500)})();</script>
 </body>
 </html>

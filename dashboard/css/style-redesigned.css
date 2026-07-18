@@ -467,7 +467,15 @@ a:hover { text-decoration: underline; }
   margin-bottom: 20px;
   letter-spacing: -0.02em;
   color: var(--text);
+  min-height: 2.2em;
 }
+
+.hero-cursor {
+  animation: blink 0.8s step-end infinite;
+  font-weight: 400;
+  color: var(--brand);
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
 .hero-title-gradient {
   background: linear-gradient(135deg, var(--brand, #6366f1) 0%, #a855f7 100%);
