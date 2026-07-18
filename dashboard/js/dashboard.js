@@ -81,12 +81,19 @@ function renderAuthUI() {
   $("#btn-sign-in").classList.toggle("hidden", signedIn);
   $("#btn-sign-out").classList.toggle("hidden", !signedIn);
 
+  // Hide sidebar on landing page, show after sign-in
+  const sidebar = $("#sidebar");
+  if (sidebar) sidebar.classList.toggle("hidden", !signedIn);
+
   // Show/hide nav items based on auth
-  $("#topbar-nav").querySelectorAll(".nav-link").forEach((l) => {
-    if (l.dataset.view === "compose" || l.dataset.view === "history" || l.dataset.view === "accounts") {
-      l.style.display = signedIn ? "" : "none";
-    }
-  });
+  const topbarNav = $("#topbar-nav");
+  if (topbarNav) {
+    topbarNav.querySelectorAll(".nav-link").forEach((l) => {
+      if (l.dataset.view === "compose" || l.dataset.view === "history" || l.dataset.view === "accounts") {
+        l.style.display = signedIn ? "" : "none";
+      }
+    });
+  }
 
   // Switch between welcome and compose
   if (!signedIn) {
