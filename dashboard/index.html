@@ -91,6 +91,7 @@
         <div class="sidebar-actions">
           <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-sm btn-primary btn-full" id="btn-sign-in">Sign in</a>
           <button class="btn btn-sm btn-ghost btn-full hidden" id="btn-sign-out">Sign out</button>
+          <button class="btn btn-sm btn-ghost btn-full" id="btn-theme-toggle" title="Toggle dark mode">◐ Theme</button>
         </div>
       </div>
     </aside>
@@ -469,5 +470,6 @@
 
   <script type="module" src="./js/dashboard.js"></script>
   <script>document.querySelector('.cnxt-footer-year').textContent = new Date().getFullYear();</script>
+<script>document.getElementById("btn-theme-toggle").addEventListener("click",()=>{const t=document.documentElement.dataset.theme==="dark"?"":"dark";document.documentElement.dataset.theme=t;localStorage.setItem("cnxt-theme",t)});(function(){const t=localStorage.getItem("cnxt-theme");if(t)document.documentElement.dataset.theme=t})();</script>
 </body>
 </html>

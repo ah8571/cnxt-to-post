@@ -1,4 +1,4 @@
-/* ── cnxt-to-post — Dark theme with grid pattern background ── */
+/* ── cnxt-to-post — Light theme with grid pattern background ── */
 
 :root {
   --bg: #ffffff;
@@ -32,6 +32,42 @@
   --shadow: 0 20px 60px rgba(55, 34, 17, 0.12);
   --shadow-lg: 0 24px 80px rgba(55, 34, 17, 0.16);
   --sidebar-width: 260px;
+}
+
+/* Dark mode */
+[data-theme="dark"] {
+  --bg: #0a0a0c;
+  --bg-alt: #111115;
+  --surface: #16161a;
+  --panel: rgba(22, 22, 26, 0.85);
+  --border: #252530;
+  --border-light: #1e1e28;
+  --text: #e4e4ed;
+  --text-secondary: #9898a8;
+  --text-muted: #686878;
+
+  --brand: #6b8cff;
+  --brand-dark: #5a78e8;
+  --brand-light: #8aa4ff;
+  --brand-soft: rgba(107, 140, 255, 0.12);
+  --brand-ring: rgba(107, 140, 255, 0.15);
+
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
+  --error: #f87171;
+  --error-soft: rgba(248, 113, 113, 0.12);
+
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-lg: 0 12px 48px rgba(0,0,0,0.5);
+}
+
+/* Dark mode grid */
+[data-theme="dark"] body::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
