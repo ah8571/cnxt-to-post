@@ -229,7 +229,12 @@ btnPost.addEventListener("click", async () => {
       let html = "";
       for (const r of data.results) {
         html += `<div class="feedback-result-item">
-          <span>${r.success ? "✅" : "❌"}</span>
+          <span class="feedback-icon ${r.success ? "feedback-icon-success" : "feedback-icon-error"}">
+            ${r.success 
+              ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+              : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+            }
+          </span>
           <span><strong>${r.platform}</strong>: ${r.success ? `<a href="${r.postUrl}" target="_blank">View →</a>` : r.error}</span>
         </div>`;
       }
@@ -262,7 +267,7 @@ function loadHistory() { try { postHistory = JSON.parse(localStorage.getItem("cn
 
 function renderHistory() {
   if (!postHistory.length) {
-    $("#history-list").innerHTML = `<div class="empty-state"><div class="empty-state-icon">📝</div><p class="empty-state-text">Your posts will appear here.</p></div>`;
+    $("#history-list").innerHTML = `<div class="empty-state"><div class="empty-state-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div><p class="empty-state-text">Your posts will appear here.</p></div>`;
     return;
   }
   $("#history-list").innerHTML = postHistory.map((p) => `
@@ -286,10 +291,10 @@ function fmtDate(iso) {
 // ── Accounts & OAuth ──
 
 function renderAccounts() {
-  const platformMap = new Map<string, typeof connectedProfiles>();
+  const platformMap = new Map();
   for (const p of connectedProfiles) {
     if (!platformMap.has(p.platform)) platformMap.set(p.platform, []);
-    platformMap.get(p.platform)!.push(p);
+    platformMap.get(p.platform).push(p);
   }
 
   $("#account-list").innerHTML = PLATFORMS.map((p) => {
@@ -620,6 +625,600 @@ if (btnSaveDraft) {
   });
 }
 
+// ── Drafts Feature ──
+
+async function fetchDrafts() {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/drafts`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      renderDrafts(data.drafts || []);
+    }
+  } catch (error) {
+    console.error("Failed to fetch drafts:", error);
+  }
+}
+
+function renderDrafts(drafts) {
+  const container = $("#drafts-list");
+  
+  if (!drafts || drafts.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <p class="empty-state-text">No drafts yet. Save a post to get started.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = drafts.map((draft) => `
+    <div class="draft-card">
+      <div class="draft-header">
+        <div>
+          <div class="draft-meta">Last updated ${new Date(draft.updated_at).toLocaleDateString()}</div>
+          <div class="draft-platforms">
+            ${draft.platforms.map((p) => `<span class="draft-platform-tag">${p}</span>`).join("")}
+          </div>
+        </div>
+      </div>
+      <div class="draft-text">${escapeHtml(draft.text.substring(0, 200))}${draft.text.length > 200 ? "..." : ""}</div>
+      <div class="draft-actions">
+        <button class="btn btn-sm btn-secondary" onclick="loadDraftIntoCompose('${draft.id}')">Load</button>
+        <button class="btn btn-sm btn-ghost" onclick="deleteDraft('${draft.id}')">Delete</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function loadDraftIntoCompose(draftId) {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/drafts`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      const draft = data.drafts.find((d) => d.id === draftId);
+      if (draft) {
+        $("#post-text").value = draft.text;
+        updateCharCount();
+        updatePlatformPreviews();
+        switchView("compose");
+      }
+    }
+  } catch (error) {
+    console.error("Failed to load draft:", error);
+  }
+}
+
+async function deleteDraft(draftId) {
+  if (!confirm("Are you sure you want to delete this draft?")) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/drafts/${draftId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      fetchDrafts();
+    }
+  } catch (error) {
+    console.error("Failed to delete draft:", error);
+  }
+}
+
+// ── Hashtag Groups Feature ──
+
+async function fetchHashtagGroups() {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/hashtags`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      renderHashtagGroups(data.groups || []);
+    }
+  } catch (error) {
+    console.error("Failed to fetch hashtag groups:", error);
+  }
+}
+
+function renderHashtagGroups(groups) {
+  const container = $("#hashtag-groups");
+  
+  if (!groups || groups.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+        </div>
+        <p class="empty-state-text">No hashtag groups yet. Create one to get started.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = groups.map((group) => `
+    <div class="hashtag-group-card">
+      <div class="hashtag-group-header">
+        <span class="hashtag-group-name">${escapeHtml(group.name)}</span>
+        <span class="hashtag-group-platform">${group.platform}</span>
+      </div>
+      <div class="hashtag-group-tags">
+        ${group.hashtags.map((tag) => `<span class="hashtag-tag">${escapeHtml(tag)}</span>`).join(" ")}
+      </div>
+      <div class="draft-actions">
+        <button class="btn btn-sm btn-secondary" onclick="addHashtagsToCompose('${group.id}')">Add to post</button>
+        <button class="btn btn-sm btn-ghost" onclick="deleteHashtagGroup('${group.id}')">Delete</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function showCreateHashtagGroupModal() {
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Hashtag Group</h3>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Group Name</label>
+          <input type="text" class="form-input" id="hashtag-group-name" placeholder="e.g., Tech startup">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Platform</label>
+          <select class="form-select" id="hashtag-group-platform">
+            ${PLATFORMS.map((p) => `<option value="${p.key}">${p.name}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hashtags (one per line)</label>
+          <textarea class="form-textarea" id="hashtag-group-tags" placeholder="#startup&#10;#tech&#10;#innovation"></textarea>
+          <span class="form-helper">Make sure each hashtag starts with #</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="btn btn-primary" id="btn-save-hashtag-group">Create</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  modal.querySelector("#btn-save-hashtag-group").addEventListener("click", async () => {
+    const name = modal.querySelector("#hashtag-group-name").value.trim();
+    const platform = modal.querySelector("#hashtag-group-platform").value;
+    const tagsText = modal.querySelector("#hashtag-group-tags").value.trim();
+    const hashtags = tagsText.split("\n").map((t) => t.trim()).filter((t) => t);
+    
+    if (!name || hashtags.length === 0) {
+      alert("Please fill in all fields");
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/hashtags`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, platform, hashtags }),
+      });
+      
+      if (res.ok) {
+        modal.remove();
+        fetchHashtagGroups();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to create hashtag group");
+      }
+    } catch (error) {
+      alert("Network error");
+    }
+  });
+}
+
+async function addHashtagsToCompose(groupId) {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/hashtags`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      const group = data.groups.find((g) => g.id === groupId);
+      if (group) {
+        const textarea = $("#post-text");
+        textarea.value += " " + group.hashtags.join(" ");
+        updateCharCount();
+        switchView("compose");
+      }
+    }
+  } catch (error) {
+    console.error("Failed to add hashtags:", error);
+  }
+}
+
+async function deleteHashtagGroup(groupId) {
+  if (!confirm("Are you sure you want to delete this hashtag group?")) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/hashtags/${groupId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      fetchHashtagGroups();
+    }
+  } catch (error) {
+    console.error("Failed to delete hashtag group:", error);
+  }
+}
+
+// ── Saved Replies Feature ──
+
+async function fetchSavedReplies() {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/replies/templates`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      renderSavedReplies(data.replies || []);
+    }
+  } catch (error) {
+    console.error("Failed to fetch saved replies:", error);
+  }
+}
+
+function renderSavedReplies(replies) {
+  const container = $("#saved-replies");
+  
+  if (!replies || replies.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <p class="empty-state-text">No saved replies yet. Create one to get started.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = replies.map((reply) => `
+    <div class="reply-card">
+      <div class="reply-header">
+        <span class="reply-title">${escapeHtml(reply.title)}</span>
+      </div>
+      <div class="reply-content">${escapeHtml(reply.content.substring(0, 150))}${reply.content.length > 150 ? "..." : ""}</div>
+      <div class="draft-platforms">
+        ${reply.platforms.map((p) => `<span class="draft-platform-tag">${p}</span>`).join("")}
+      </div>
+      <div class="draft-actions">
+        <button class="btn btn-sm btn-secondary" onclick="copyReply('${reply.id}')">Copy</button>
+        <button class="btn btn-sm btn-ghost" onclick="deleteSavedReply('${reply.id}')">Delete</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function showCreateReplyModal() {
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Saved Reply</h3>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input type="text" class="form-input" id="reply-title" placeholder="e.g., Thank you for following">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Content</label>
+          <textarea class="form-textarea" id="reply-content" placeholder="Thanks for following! Looking forward to connecting with you."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Platforms (optional)</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${PLATFORMS.map((p) => `
+              <label style="display:flex;align-items:center;gap:4px;font-size:0.875rem;">
+                <input type="checkbox" value="${p.key}" class="reply-platform-checkbox">
+                ${p.name}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="btn btn-primary" id="btn-save-reply">Create</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  modal.querySelector("#btn-save-reply").addEventListener("click", async () => {
+    const title = modal.querySelector("#reply-title").value.trim();
+    const content = modal.querySelector("#reply-content").value.trim();
+    const platforms = Array.from(modal.querySelectorAll(".reply-platform-checkbox:checked")).map((cb) => cb.value);
+    
+    if (!title || !content) {
+      alert("Please fill in all required fields");
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/replies/templates`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title, content, platforms }),
+      });
+      
+      if (res.ok) {
+        modal.remove();
+        fetchSavedReplies();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to create saved reply");
+      }
+    } catch (error) {
+      alert("Network error");
+    }
+  });
+}
+
+async function copyReply(replyId) {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/replies/templates`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      const reply = data.replies.find((r) => r.id === replyId);
+      if (reply) {
+        await navigator.clipboard.writeText(reply.content);
+        alert("Reply copied to clipboard!");
+      }
+    }
+  } catch (error) {
+    console.error("Failed to copy reply:", error);
+  }
+}
+
+async function deleteSavedReply(replyId) {
+  if (!confirm("Are you sure you want to delete this saved reply?")) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/replies/templates/${replyId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      fetchSavedReplies();
+    }
+  } catch (error) {
+    console.error("Failed to delete saved reply:", error);
+  }
+}
+
+// ── Queue Feature ──
+
+async function fetchQueue() {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/queue`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      renderQueue(data.queue || []);
+    }
+  } catch (error) {
+    console.error("Failed to fetch queue:", error);
+  }
+}
+
+function renderQueue(queue) {
+  const container = $("#queue-list");
+  
+  if (!queue || queue.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <p class="empty-state-text">Your queue is empty. Add posts to schedule them.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = queue.map((item) => `
+    <div class="queue-card">
+      <div class="queue-header">
+        <div class="queue-schedule">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          ${new Date(item.schedule_time || item.created_at).toLocaleString()}
+        </div>
+        <div class="queue-actions">
+          <button class="btn btn-sm btn-ghost" onclick="removeFromQueue('${item.id}')">Remove</button>
+        </div>
+      </div>
+      <div class="queue-text">${escapeHtml(item.text.substring(0, 200))}${item.text.length > 200 ? "..." : ""}</div>
+      <div class="queue-footer">
+        <div class="queue-platforms">
+          ${item.platforms.map((p) => `<span class="draft-platform-tag">${p}</span>`).join("")}
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function refillQueue() {
+  if (!confirm("Refill queue with drafts? This will add posts from your drafts to fill a 7-day schedule.")) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/queue/refill`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      alert(data.message || "Queue refilled!");
+      fetchQueue();
+    } else {
+      const data = await res.json();
+      alert(data.error || "Failed to refill queue");
+    }
+  } catch (error) {
+    alert("Network error");
+  }
+}
+
+async function removeFromQueue(queueId) {
+  if (!confirm("Are you sure you want to remove this post from the queue?")) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/queue/${queueId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      fetchQueue();
+    }
+  } catch (error) {
+    console.error("Failed to remove from queue:", error);
+  }
+}
+
+// ── Analytics Feature ──
+
+async function fetchAnalytics() {
+  if (!session) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/analytics`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      renderAnalytics(data);
+    }
+  } catch (error) {
+    console.error("Failed to fetch analytics:", error);
+  }
+}
+
+function renderAnalytics(data) {
+  const summaryContainer = $("#analytics-summary");
+  const platformsContainer = $("#analytics-platforms");
+  
+  // Render summary metrics
+  const totals = data.totals || { posts: 0, likes: 0, comments: 0, shares: 0 };
+  summaryContainer.innerHTML = `
+    <div class="analytics-metric-card">
+      <div class="analytics-metric-label">Posts</div>
+      <div class="analytics-metric-value">${totals.posts}</div>
+    </div>
+    <div class="analytics-metric-card">
+      <div class="analytics-metric-label">Likes</div>
+      <div class="analytics-metric-value">${totals.likes}</div>
+    </div>
+    <div class="analytics-metric-card">
+      <div class="analytics-metric-label">Comments</div>
+      <div class="analytics-metric-value">${totals.comments}</div>
+    </div>
+    <div class="analytics-metric-card">
+      <div class="analytics-metric-label">Shares</div>
+      <div class="analytics-metric-value">${totals.shares}</div>
+    </div>
+  `;
+  
+  // Render platform breakdown
+  const analytics = data.analytics || {};
+  platformsContainer.innerHTML = PLATFORMS.map((p) => {
+    const stats = analytics[p.key] || { posts: 0, likes: 0, comments: 0, shares: 0 };
+    return `
+      <div class="analytics-platform-card">
+        <div class="analytics-platform-header">
+          <span class="analytics-platform-name">${p.name}</span>
+        </div>
+        <div class="analytics-platform-stats">
+          <div class="analytics-stat-row">
+            <span class="analytics-stat-label">Posts</span>
+            <span class="analytics-stat-value">${stats.posts}</span>
+          </div>
+          <div class="analytics-stat-row">
+            <span class="analytics-stat-label">Likes</span>
+            <span class="analytics-stat-value">${stats.likes}</span>
+          </div>
+          <div class="analytics-stat-row">
+            <span class="analytics-stat-label">Comments</span>
+            <span class="analytics-stat-value">${stats.comments}</span>
+          </div>
+          <div class="analytics-stat-row">
+            <span class="analytics-stat-label">Shares</span>
+            <span class="analytics-stat-value">${stats.shares}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// ── Helper Functions ──
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // ── Init ──
 
 async function init() {
@@ -629,6 +1228,49 @@ async function init() {
   renderPlatformChips();
   await refreshAuth();
   await fetchScheduled();
+  
+  // Initialize new feature views
+  if ($("#view-drafts")) fetchDrafts();
+  if ($("#view-hashtags")) fetchHashtagGroups();
+  if ($("#view-replies")) fetchSavedReplies();
+  if ($("#view-queue")) fetchQueue();
+  if ($("#view-analytics")) fetchAnalytics();
 }
+
+// ── Navigation ──
+
+$$(".sidebar-nav-item").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const view = btn.dataset.view;
+    switchView(view);
+  });
+});
+
+function switchView(viewName) {
+  currentView = viewName;
+  
+  $$(".view").forEach((v) => v.classList.add("hidden"));
+  $(`#view-${viewName}`)?.classList.remove("hidden");
+  
+  $$(".sidebar-nav-item").forEach((i) => i.classList.remove("sidebar-nav-item-active"));
+  $(`.sidebar-nav-item[data-view="${viewName}"]`)?.classList.add("sidebar-nav-item-active");
+  
+  // Close sidebar on mobile
+  $(".sidebar")?.classList.remove("sidebar-open");
+  $(".sidebar-overlay")?.classList.remove("active");
+  
+  // Refresh data for the view
+  if (viewName === "drafts") fetchDrafts();
+  if (viewName === "hashtags") fetchHashtagGroups();
+  if (viewName === "replies") fetchSavedReplies();
+  if (viewName === "queue") fetchQueue();
+  if (viewName === "analytics") fetchAnalytics();
+}
+
+// ── Event Listeners ──
+
+$("#btn-create-hashtag-group")?.addEventListener("click", showCreateHashtagGroupModal);
+$("#btn-create-reply")?.addEventListener("click", showCreateReplyModal);
+$("#btn-refill-queue")?.addEventListener("click", refillQueue);
 
 init();

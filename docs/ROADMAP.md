@@ -33,6 +33,8 @@ Existing scripts live in `social/`:
 
 X API v2 is not free. The free tier is heavily rate-limited (1,500 posts/month, 100 reads/month). Paid tiers: Basic ~$100/mo, Pro ~$5,000/mo.
 
+
+
 **Two paths for users:**
 
 ### Path A: Bring Your Own Keys (BYOK) — Free
@@ -76,6 +78,11 @@ Both paths coexist. BYOK is always available as the zero-cost option. Credits ar
 ---
 
 ## Phases
+
+### Can obtain api credentials from providers
+
+https://zernio.com/pricing
+https://bundle.social/pricing
 
 ### Phase 1 — Core API (current → next)
 
@@ -156,10 +163,75 @@ The only thing that costs money is X API access — and you can avoid that entir
 | Per-platform metrics scripts | ✅ Done (`social/*-metrics.mjs`) |
 | Per-platform auth scripts | ✅ Done (`social/*-auth.mjs`, `social/auth/*.mjs`) |
 | API reference docs | ✅ Done (`SOCIAL_API_REFERENCE.md`) |
-| Cloudflare Worker API | ❌ Not started |
-| Dashboard UI | ❌ Not started |
-| Central auth integration | ❌ Not started |
-| Credit system | ❌ Not started |
+| Cloudflare Worker API | ✅ Done (`src/index.ts`) |
+| Database schema | ✅ Done (`supabase/setup.sql`) |
+| Dashboard UI (redesigned) | ✅ Done (`dashboard/`) |
+| Central auth integration | ✅ Done (Supabase auth) |
+| Token encryption | ✅ Done (AES-256-GCM) |
+| Credit system | ⏳ Not started |
+| Post scheduling (queue) | ✅ Backend done, UI pending |
+| Drafts feature | ✅ Backend done, UI pending |
+| Hashtag Manager | ✅ Backend done, UI pending |
+| Saved Replies | ✅ Backend done, UI pending |
+| Unified Inbox | ⏳ Backend & UI pending |
+| Analytics Dashboard | ✅ Backend done, UI pending |
+
+---
+
+## Recent Implementation Notes
+
+### ✅ Completed (January 2026)
+- **Infrastructure**: Complete API backend in Cloudflare Workers with TypeScript
+- **Database**: Full PostgreSQL schema with RLS policies, 10+ tables for production
+- **Security**: AES-256-GCM token encryption with PBKDF2 key derivation
+- **Auth**: OAuth flows for all 7 platforms (Bluesky, X, LinkedIn, Facebook, Instagram, Threads, TikTok)
+- **Logging**: Structured error logging with correlation IDs
+- **Health**: Enhanced health monitoring and status endpoints
+- **UI**: Redesigned dashboard with sidebar navigation, modern design system
+
+### ✅ Backend API Endpoints Completed
+All 6 high-priority features have complete API implementations:
+- **Drafts**: `GET/POST/DELETE /api/drafts` — Content library for saving and reusing posts
+- **Hashtag Manager**: `GET/POST/DELETE /api/hashtags` — Organize hashtag groups by platform
+- **Saved Replies**: `GET/POST/DELETE /api/replies/templates` — Quick reply templates
+- **Queue**: `GET/POST/DELETE /api/queue` + `POST /api/queue/refill` + Cron job — Post scheduling with auto-refill
+- **Analytics**: `GET /api/analytics` + `GET /api/analytics/trends` — Cross-platform performance tracking
+- **Inbox**: Database schema ready, endpoint handlers planned
+
+### ⏳ UI Components (January 2026)
+- **HTML Structure**: All view sections added (Drafts, Hashtags, Replies, Queue, Inbox, Analytics)
+- **CSS Styles**: Complete styling for all new features with modal support
+- **JavaScript**: Feature handlers implemented for Drafts, Hashtags, Replies, Queue, Analytics
+- **Navigation**: Sidebar navigation updated with all new feature links
+
+### ⏳ Still Needs Work
+
+#### Unified Inbox (High Effort)
+- **Backend**: Need to implement comment fetching from all platform APIs
+- **UI**: Inbox list exists in HTML, needs comment rendering logic
+- **Reply functionality**: Handlers for posting replies to each platform
+- **Real-time updates**: WebSocket or polling for new comments
+
+#### Queue Scheduling
+- **Cron job**: Needs Cloudflare Cron Triggers configuration in wrangler.toml
+- **Timezone handling**: User timezone preferences for scheduling
+- **Calendar UI**: Visual calendar for managing scheduled posts
+
+#### Analytics Enhancements
+- **Charts/graphs**: Visual data visualization (Chart.js or similar)
+- **Trend lines**: Better trend analysis over time
+- **Platform comparison**: Side-by-side performance metrics
+
+#### Mobile Responsiveness
+- **Compose interface**: Better mobile experience for media upload
+- **Feature views**: Optimize new features for mobile screens
+- **Touch interactions**: Gesture support for swiping between views
+
+#### Testing & Deployment
+- **Integration tests**: API endpoint testing
+- **E2E tests**: Full user flows (compose → post → analytics)
+- **CI/CD**: GitHub Actions workflow refinement
+- **Monitoring**: Production error tracking and performance monitoring
 
 ---
 

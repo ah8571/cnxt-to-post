@@ -16,13 +16,14 @@ cnxt to post does that wiring once, exposes it as a simple REST API, and gives y
 
 | Platform | Post | Read Metrics | API Cost |
 |---|---|---|---|
-| 🦋 Bluesky | ✅ | ✅ | Free |
-| 𝕏 X (Twitter) | ✅ | ✅ | Paid (BYOK or credits) |
-| 💼 LinkedIn | ✅ | ✅ | Free |
-| 📘 Facebook | ✅ | ✅ | Free |
-| 📸 Instagram | ✅ | ✅ | Free |
-| 🎵 TikTok | ✅ | ✅ | Free |
-| ▶️ YouTube | 📋 Planned | 📋 Planned | Free |
+| Bluesky | Done | Done | Free |
+| X (Twitter) | Done | Done | Paid (BYOK or credits) |
+| LinkedIn | Done | Done | Free |
+| Facebook | Done | Done | Free |
+| Instagram | Done | Done | Free |
+| Threads | Done | Done | Free |
+| TikTok | Done | Done | Free |
+| YouTube | Planned | Planned | Free |
 
 ## Architecture
 

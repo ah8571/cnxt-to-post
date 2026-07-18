@@ -5,7 +5,6 @@ export default function HistoryScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "#fafbfc" }} contentContainerStyle={s.container}>
       <View style={s.empty}>
-        <Text style={s.emptyIcon}>📝</Text>
         <Text style={s.emptyText}>Your post history will appear here after you start posting.</Text>
       </View>
     </ScrollView>

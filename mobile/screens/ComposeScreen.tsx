@@ -102,10 +102,10 @@ export default function ComposeScreen() {
 
       {/* Bottom nav */}
       <View style={s.tabs}>
-        <TouchableOpacity style={s.tab}><Text style={s.tabActive}>✏️ Compose</Text></TouchableOpacity>
-        <TouchableOpacity style={s.tab} onPress={() => nav.navigate("Accounts")}><Text style={s.tabText}>🔐 Accounts</Text></TouchableOpacity>
-        <TouchableOpacity style={s.tab} onPress={() => nav.navigate("History")}><Text style={s.tabText}>📋 History</Text></TouchableOpacity>
-        <TouchableOpacity style={s.tab} onPress={signOut}><Text style={s.tabText}>🚪 Sign out</Text></TouchableOpacity>
+        <TouchableOpacity style={s.tab}><Text style={s.tabActive}>Compose</Text></TouchableOpacity>
+        <TouchableOpacity style={s.tab} onPress={() => nav.navigate("Accounts")}><Text style={s.tabText}>Accounts</Text></TouchableOpacity>
+        <TouchableOpacity style={s.tab} onPress={() => nav.navigate("History")}><Text style={s.tabText}>History</Text></TouchableOpacity>
+        <TouchableOpacity style={s.tab} onPress={signOut}><Text style={s.tabText}>Sign out</Text></TouchableOpacity>
       </View>
     </View>
   );

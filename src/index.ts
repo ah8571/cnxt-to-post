@@ -17,6 +17,13 @@ export interface Env {
   // Encryption key for token storage
   ENCRYPTION_KEY?: string;
 
+  // Third-party social API provider (e.g. Ayrshare) — wraps multiple platforms
+  SOCIAL_API_PROVIDER_KEY?: string;
+  SOCIAL_API_PROVIDER_URL?: string;  // e.g. https://app.ayrshare.com/api
+
+  // Environment name
+  ENVIRONMENT?: string;
+
   // OAuth client credentials
   BLUESKY_CLIENT_ID?: string;  BLUESKY_CLIENT_SECRET?: string;
   BLUESKY_REDIRECT_URI?: string;
@@ -155,6 +162,65 @@ async function handleApi(
     return handleMetrics(request, env, metricsMatch[1] as Platform, metricsMatch[2], origin, h);
   }
 
+  // --- Drafts API ---
+  if (url.pathname === "/api/drafts" && request.method === "GET") {
+    return handleGetDrafts(request, env, origin, h);
+  }
+  if (url.pathname === "/api/drafts" && request.method === "POST") {
+    return handleCreateDraft(request, env, origin, h);
+  }
+  const draftDeleteMatch = url.pathname.match(/^\/api\/drafts\/([a-f0-9-]+)$/);
+  if (draftDeleteMatch && request.method === "DELETE") {
+    return handleDeleteDraft(request, env, draftDeleteMatch[1], origin, h);
+  }
+
+  // --- Hashtag Groups API ---
+  if (url.pathname === "/api/hashtags" && request.method === "GET") {
+    return handleGetHashtags(request, env, origin, h);
+  }
+  if (url.pathname === "/api/hashtags" && request.method === "POST") {
+    return handleCreateHashtagGroup(request, env, origin, h);
+  }
+  const hashtagDeleteMatch = url.pathname.match(/^\/api\/hashtags\/([a-f0-9-]+)$/);
+  if (hashtagDeleteMatch && request.method === "DELETE") {
+    return handleDeleteHashtagGroup(request, env, hashtagDeleteMatch[1], origin, h);
+  }
+
+  // --- Saved Replies API ---
+  if (url.pathname === "/api/replies/templates" && request.method === "GET") {
+    return handleGetSavedReplies(request, env, origin, h);
+  }
+  if (url.pathname === "/api/replies/templates" && request.method === "POST") {
+    return handleCreateSavedReply(request, env, origin, h);
+  }
+  const savedReplyDeleteMatch = url.pathname.match(/^\/api\/replies\/templates\/([a-f0-9-]+)$/);
+  if (savedReplyDeleteMatch && request.method === "DELETE") {
+    return handleDeleteSavedReply(request, env, savedReplyDeleteMatch[1], origin, h);
+  }
+
+  // --- Queue API ---
+  if (url.pathname === "/api/queue" && request.method === "GET") {
+    return handleGetQueue(request, env, origin, h);
+  }
+  if (url.pathname === "/api/queue" && request.method === "POST") {
+    return handleAddToQueue(request, env, origin, h);
+  }
+  if (url.pathname === "/api/queue/refill" && request.method === "POST") {
+    return handleRefillQueue(request, env, origin, h);
+  }
+  const queueDeleteMatch = url.pathname.match(/^\/api\/queue\/([a-f0-9-]+)$/);
+  if (queueDeleteMatch && request.method === "DELETE") {
+    return handleRemoveFromQueue(request, env, queueDeleteMatch[1], origin, h);
+  }
+
+  // --- Analytics API ---
+  if (url.pathname === "/api/analytics" && request.method === "GET") {
+    return handleGetAnalytics(request, env, origin, h);
+  }
+  if (url.pathname === "/api/analytics/trends" && request.method === "GET") {
+    return handleGetAnalyticsTrends(request, env, origin, h);
+  }
+
   return errorResponse("Not found", 404, origin);
 }
 
@@ -229,11 +295,16 @@ async function handlePost(
     userTokens = await fetchUserTokens(user.sub, env.SUPABASE_SERVICE_ROLE_KEY);
   }
 
-  // Post to each platform in parallel
+  // Post to each platform in parallel, with provider fallback
   const results: PlatformPostResult[] = await Promise.all(
-    body.platforms.map((platform) =>
-      postToPlatform(platform, body.text, env, body.mediaUrls, body.replyTo, userTokens)
-    )
+    body.platforms.map(async (platform) => {
+      const result = await postToPlatform(platform, body.text, env, body.mediaUrls, body.replyTo, userTokens);
+      // If direct keys aren't configured, try the third-party provider
+      if (!result.success && result.error?.includes("not configured") && env.SOCIAL_API_PROVIDER_KEY) {
+        return postViaProvider(platform, body.text, env, body.mediaUrls);
+      }
+      return result;
+    })
   );
 
   const response: PostResponse = {
@@ -308,6 +379,49 @@ async function postToPlatform(
 
     default:
       return { platform, success: false, error: `Unknown platform: ${platform}` };
+  }
+}
+
+/**
+ * Post via a third-party social API provider (e.g. Ayrshare) as fallback.
+ */
+async function postViaProvider(
+  platform: Platform,
+  text: string,
+  env: Env,
+  mediaUrls?: string[]
+): Promise<PlatformPostResult> {
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.SOCIAL_API_PROVIDER_URL) {
+    return { platform, success: false, error: "API provider not configured" };
+  }
+
+  try {
+    const res = await fetch(`${env.SOCIAL_API_PROVIDER_URL}/post`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.SOCIAL_API_PROVIDER_KEY}`,
+      },
+      body: JSON.stringify({
+        post: text,
+        platforms: [platform],
+        mediaUrls: mediaUrls || [],
+      }),
+    });
+
+    const data = (await res.json()) as any;
+    if (!res.ok) {
+      return { platform, success: false, error: `Provider error: ${data.message || res.status}` };
+    }
+
+    return {
+      platform,
+      success: true,
+      postId: data.id || data.postIds?.[0]?.id,
+      postUrl: data.postIds?.[0]?.postUrl || data.url,
+    };
+  } catch (e) {
+    return { platform, success: false, error: e instanceof Error ? e.message : "Provider error" };
   }
 }
 
@@ -703,4 +817,919 @@ async function handleHealthCheck(
 
   const statusCode = overallStatus === "healthy" ? 200 : overallStatus === "degraded" ? 200 : 503;
   return json(healthData, statusCode, corsHeaders(origin));
+}
+
+// ── Drafts API Handlers ──
+
+/**
+ * GET /api/drafts — List all drafts for the authenticated user
+ */
+async function handleGetDrafts(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_drafts?user_id=eq.${user.sub}&order=updated_at.desc`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to fetch drafts", 500, origin);
+    }
+
+    const drafts = await res.json();
+    return json({ drafts }, 200, headers);
+  } catch (error) {
+    console.error("Drafts fetch error:", error);
+    return errorResponse("Failed to fetch drafts", 500, origin);
+  }
+}
+
+/**
+ * POST /api/drafts — Create a new draft
+ */
+async function handleCreateDraft(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  let body: { text: string; platforms?: Platform[]; media?: Array<{ type: string; name: string }> };
+  try {
+    body = (await request.json()) as any;
+  } catch {
+    return errorResponse("Invalid JSON body", 400, origin);
+  }
+
+  if (!body.text?.trim()) {
+    return errorResponse("Text content is required", 400, origin);
+  }
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(`${supabaseUrl}/rest/v1/post_drafts`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        user_id: user.sub,
+        text: body.text,
+        platforms: body.platforms || [],
+        media: body.media || [],
+      }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json() as { message?: string };
+      return errorResponse(errorData.message || "Failed to create draft", 500, origin);
+    }
+
+    const [draft] = await res.json() as any[];
+    return json({ draft }, 201, headers);
+  } catch (error) {
+    console.error("Draft creation error:", error);
+    return errorResponse("Failed to create draft", 500, origin);
+  }
+}
+
+/**
+ * DELETE /api/drafts/:id — Delete a draft
+ */
+async function handleDeleteDraft(
+  request: Request,
+  env: Env,
+  draftId: string,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_drafts?id=eq.${draftId}&user_id=eq.${user.sub}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to delete draft", 500, origin);
+    }
+
+    return json({ deleted: true }, 200, headers);
+  } catch (error) {
+    console.error("Draft deletion error:", error);
+    return errorResponse("Failed to delete draft", 500, origin);
+  }
+}
+
+// ── Hashtag Groups API Handlers ──
+
+/**
+ * GET /api/hashtags — List all hashtag groups for the user
+ */
+async function handleGetHashtags(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_hashtag_groups?user_id=eq.${user.sub}&order=created_at.desc`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to fetch hashtag groups", 500, origin);
+    }
+
+    const groups = await res.json();
+    return json({ groups }, 200, headers);
+  } catch (error) {
+    console.error("Hashtag groups fetch error:", error);
+    return errorResponse("Failed to fetch hashtag groups", 500, origin);
+  }
+}
+
+/**
+ * POST /api/hashtags — Create a new hashtag group
+ */
+async function handleCreateHashtagGroup(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  let body: { name: string; platform: Platform; hashtags: string[] };
+  try {
+    body = (await request.json()) as any;
+  } catch {
+    return errorResponse("Invalid JSON body", 400, origin);
+  }
+
+  if (!body.name?.trim()) {
+    return errorResponse("Name is required", 400, origin);
+  }
+  if (!body.platform) {
+    return errorResponse("Platform is required", 400, origin);
+  }
+  if (!body.hashtags || !Array.isArray(body.hashtags) || body.hashtags.length === 0) {
+    return errorResponse("Hashtags array is required", 400, origin);
+  }
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(`${supabaseUrl}/rest/v1/post_hashtag_groups`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        user_id: user.sub,
+        name: body.name,
+        platform: body.platform,
+        hashtags: body.hashtags.filter((h) => h.trim().startsWith("#")),
+      }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json() as { message?: string };
+      return errorResponse(errorData.message || "Failed to create hashtag group", 500, origin);
+    }
+
+    const [group] = await res.json() as any[];
+    return json({ group }, 201, headers);
+  } catch (error) {
+    console.error("Hashtag group creation error:", error);
+    return errorResponse("Failed to create hashtag group", 500, origin);
+  }
+}
+
+/**
+ * DELETE /api/hashtags/:id — Delete a hashtag group
+ */
+async function handleDeleteHashtagGroup(
+  request: Request,
+  env: Env,
+  groupId: string,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_hashtag_groups?id=eq.${groupId}&user_id=eq.${user.sub}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to delete hashtag group", 500, origin);
+    }
+
+    return json({ deleted: true }, 200, headers);
+  } catch (error) {
+    console.error("Hashtag group deletion error:", error);
+    return errorResponse("Failed to delete hashtag group", 500, origin);
+  }
+}
+
+// ── Saved Replies API Handlers ──
+
+/**
+ * GET /api/replies/templates — List all saved replies for the user
+ */
+async function handleGetSavedReplies(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_saved_replies?user_id=eq.${user.sub}&order=created_at.desc`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to fetch saved replies", 500, origin);
+    }
+
+    const replies = await res.json();
+    return json({ replies }, 200, headers);
+  } catch (error) {
+    console.error("Saved replies fetch error:", error);
+    return errorResponse("Failed to fetch saved replies", 500, origin);
+  }
+}
+
+/**
+ * POST /api/replies/templates — Create a new saved reply
+ */
+async function handleCreateSavedReply(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  let body: { title: string; content: string; platforms?: Platform[] };
+  try {
+    body = (await request.json()) as any;
+  } catch {
+    return errorResponse("Invalid JSON body", 400, origin);
+  }
+
+  if (!body.title?.trim()) {
+    return errorResponse("Title is required", 400, origin);
+  }
+  if (!body.content?.trim()) {
+    return errorResponse("Content is required", 400, origin);
+  }
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(`${supabaseUrl}/rest/v1/post_saved_replies`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        user_id: user.sub,
+        title: body.title,
+        content: body.content,
+        platforms: body.platforms || [],
+      }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json() as { message?: string };
+      return errorResponse(errorData.message || "Failed to create saved reply", 500, origin);
+    }
+
+    const [reply] = await res.json() as any[];
+    return json({ reply }, 201, headers);
+  } catch (error) {
+    console.error("Saved reply creation error:", error);
+    return errorResponse("Failed to create saved reply", 500, origin);
+  }
+}
+
+/**
+ * DELETE /api/replies/templates/:id — Delete a saved reply
+ */
+async function handleDeleteSavedReply(
+  request: Request,
+  env: Env,
+  replyId: string,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_saved_replies?id=eq.${replyId}&user_id=eq.${user.sub}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to delete saved reply", 500, origin);
+    }
+
+    return json({ deleted: true }, 200, headers);
+  } catch (error) {
+    console.error("Saved reply deletion error:", error);
+    return errorResponse("Failed to delete saved reply", 500, origin);
+  }
+}
+
+// ── Queue API Handlers ──
+
+/**
+ * GET /api/queue — List all posts in the user's queue
+ */
+async function handleGetQueue(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_queue?user_id=eq.${user.sub}&status=eq.pending&order=created_at.asc`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to fetch queue", 500, origin);
+    }
+
+    const queue = await res.json();
+    return json({ queue }, 200, headers);
+  } catch (error) {
+    console.error("Queue fetch error:", error);
+    return errorResponse("Failed to fetch queue", 500, origin);
+  }
+}
+
+/**
+ * POST /api/queue — Add a post to the queue
+ */
+async function handleAddToQueue(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  let body: { text: string; platforms: Platform[]; scheduleTime?: string; mediaUrls?: string[] };
+  try {
+    body = (await request.json()) as any;
+  } catch {
+    return errorResponse("Invalid JSON body", 400, origin);
+  }
+
+  if (!body.text?.trim()) {
+    return errorResponse("Text content is required", 400, origin);
+  }
+  if (!body.platforms || !Array.isArray(body.platforms) || body.platforms.length === 0) {
+    return errorResponse("At least one platform is required", 400, origin);
+  }
+
+  const scheduleTime = body.scheduleTime ? new Date(body.scheduleTime) : null;
+  if (scheduleTime && isNaN(scheduleTime.getTime())) {
+    return errorResponse("Invalid schedule time", 400, origin);
+  }
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(`${supabaseUrl}/rest/v1/post_queue`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        user_id: user.sub,
+        text: body.text,
+        platforms: body.platforms,
+        media_urls: body.mediaUrls || [],
+        schedule_time: scheduleTime ? scheduleTime.toISOString() : null,
+        status: "pending",
+      }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json() as { message?: string };
+      return errorResponse(errorData.message || "Failed to add to queue", 500, origin);
+    }
+
+    const [queued] = await res.json() as any[];
+    return json({ queued }, 201, headers);
+  } catch (error) {
+    console.error("Queue addition error:", error);
+    return errorResponse("Failed to add to queue", 500, origin);
+  }
+}
+
+/**
+ * POST /api/queue/refill — Refill the queue with content from drafts
+ */
+async function handleRefillQueue(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  let body: { targetCount?: number };
+  try {
+    body = (await request.json()) as any;
+  } catch {
+    body = { targetCount: undefined };
+  }
+
+  const targetCount = body.targetCount || 7; // Default to 7 posts per week
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+
+    // Get current queue count
+    const queueRes = await fetch(
+      `${supabaseUrl}/rest/v1/post_queue?user_id=eq.${user.sub}&status=eq.pending&select=id`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+    const currentQueue = await queueRes.json() as any[];
+    const queueCount = currentQueue.length;
+
+    if (queueCount >= targetCount) {
+      return json({ message: "Queue already full", queueCount, targetCount }, 200, headers);
+    }
+
+    const needed = targetCount - queueCount;
+
+    // Get unused drafts
+    const draftsRes = await fetch(
+      `${supabaseUrl}/rest/v1/post_drafts?user_id=eq.${user.sub}&limit=${needed}&order=updated_at.desc&select=*`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+    const drafts = await draftsRes.json() as any[];
+
+    if (!drafts || drafts.length === 0) {
+      return json({ message: "No drafts available to refill queue", queueCount, targetCount }, 200, headers);
+    }
+
+    // Add drafts to queue with spaced scheduling
+    const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const added: any[] = [];
+
+    for (let i = 0; i < drafts.length && i < needed; i++) {
+      const scheduleTime = new Date(now.getTime() + (i + 1) * dayMs);
+      const res = await fetch(`${supabaseUrl}/rest/v1/post_queue`, {
+        method: "POST",
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({
+          user_id: user.sub,
+          text: drafts[i].text,
+          platforms: drafts[i].platforms,
+          media_urls: drafts[i].media || [],
+          schedule_time: scheduleTime.toISOString(),
+          status: "pending",
+        }),
+      });
+
+      if (res.ok) {
+        const [queued] = await res.json() as any[];
+        added.push(queued);
+      }
+    }
+
+    return json(
+      {
+        message: `Added ${added.length} posts to queue`,
+        added,
+        queueCount: queueCount + added.length,
+        targetCount,
+      },
+      200,
+      headers
+    );
+  } catch (error) {
+    console.error("Queue refill error:", error);
+    return errorResponse("Failed to refill queue", 500, origin);
+  }
+}
+
+/**
+ * DELETE /api/queue/:id — Remove a post from the queue
+ */
+async function handleRemoveFromQueue(
+  request: Request,
+  env: Env,
+  queueId: string,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_queue?id=eq.${queueId}&user_id=eq.${user.sub}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return errorResponse("Failed to remove from queue", 500, origin);
+    }
+
+    return json({ removed: true }, 200, headers);
+  } catch (error) {
+    console.error("Queue removal error:", error);
+    return errorResponse("Failed to remove from queue", 500, origin);
+  }
+}
+
+// ── Analytics API Handlers ──
+
+/**
+ * GET /api/analytics — Get analytics for all platforms
+ */
+async function handleGetAnalytics(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  const url = new URL(request.url);
+  const startDate = url.searchParams.get("start") || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const endDate = url.searchParams.get("end") || new Date().toISOString();
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+
+    // Get post history for the date range
+    const historyRes = await fetch(
+      `${supabaseUrl}/rest/v1/post_history?user_id=eq.${user.sub}&created_at=gte.${startDate}&created_at=lte.${endDate}&select=*`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!historyRes.ok) {
+      return errorResponse("Failed to fetch analytics", 500, origin);
+    }
+
+    const posts = await historyRes.json() as any[];
+
+    // Get engagement logs
+    const engagementRes = await fetch(
+      `${supabaseUrl}/rest/v1/post_engagement_log?post_id=in.(${posts.map((p: any) => p.id).join(",")})&select=*`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    const engagements = engagementRes.ok ? await engagementRes.json() as any[] : [];
+
+    // Aggregate analytics by platform
+    const analytics: Record<string, any> = {
+      bluesky: { posts: 0, likes: 0, comments: 0, shares: 0 },
+      x: { posts: 0, likes: 0, comments: 0, shares: 0 },
+      linkedin: { posts: 0, likes: 0, comments: 0, shares: 0 },
+      facebook: { posts: 0, likes: 0, comments: 0, shares: 0 },
+      instagram: { posts: 0, likes: 0, comments: 0, shares: 0 },
+      threads: { posts: 0, likes: 0, comments: 0, shares: 0 },
+      tiktok: { posts: 0, likes: 0, comments: 0, shares: 0 },
+    };
+
+    posts.forEach((post: any) => {
+      const platform = post.platform;
+      if (analytics[platform]) {
+        analytics[platform].posts++;
+      }
+    });
+
+    engagements.forEach((eng: any) => {
+      const platform = eng.platform;
+      if (analytics[platform]) {
+        analytics[platform].likes += eng.likes || 0;
+        analytics[platform].comments += eng.comments || 0;
+        analytics[platform].shares += eng.shares || 0;
+      }
+    });
+
+    // Calculate totals
+    const totals = {
+      posts: posts.length,
+      likes: Object.values(analytics).reduce((sum: number, a: any) => sum + a.likes, 0),
+      comments: Object.values(analytics).reduce((sum: number, a: any) => sum + a.comments, 0),
+      shares: Object.values(analytics).reduce((sum: number, a: any) => sum + a.shares, 0),
+    };
+
+    return json(
+      {
+        analytics,
+        totals,
+        period: { start: startDate, end: endDate },
+      },
+      200,
+      headers
+    );
+  } catch (error) {
+    console.error("Analytics fetch error:", error);
+    return errorResponse("Failed to fetch analytics", 500, origin);
+  }
+}
+
+/**
+ * GET /api/analytics/trends — Get analytics trends over time
+ */
+async function handleGetAnalyticsTrends(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Not configured", 501, origin);
+
+  const url = new URL(request.url);
+  const days = parseInt(url.searchParams.get("days") || "30");
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    // Get post history grouped by day
+    const historyRes = await fetch(
+      `${supabaseUrl}/rest/v1/post_history?user_id=eq.${user.sub}&created_at=gte.${startDate}&order=created_at.desc&select=*`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!historyRes.ok) {
+      return errorResponse("Failed to fetch trends", 500, origin);
+    }
+
+    const posts = await historyRes.json() as any[];
+
+    // Group by day
+    const trends: Record<string, { posts: number; likes: number; comments: number; shares: number }> = {};
+
+    posts.forEach((post: any) => {
+      const day = new Date(post.created_at).toISOString().split("T")[0];
+      if (!trends[day]) {
+        trends[day] = { posts: 0, likes: 0, comments: 0, shares: 0 };
+      }
+      trends[day].posts++;
+      // Note: We'd need to fetch engagement logs for each post to get accurate trends
+    });
+
+    return json(
+      {
+        trends,
+        period: { start: startDate, end: new Date().toISOString(), days },
+      },
+      200,
+      headers
+    );
+  } catch (error) {
+    console.error("Trends fetch error:", error);
+    return errorResponse("Failed to fetch trends", 500, origin);
+  }
+}
+
+/**
+ * Handle cron job to process scheduled posts from the queue
+ */
+async function handleCron(env: Env): Promise<Response> {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    return json({ error: "Not configured" }, 501);
+  }
+
+  try {
+    const supabaseUrl = env.SUPABASE_URL || "https://jstojewashwoswsskwjk.supabase.co";
+    const now = new Date().toISOString();
+
+    // Get pending posts scheduled for now or earlier
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/post_queue?status=eq.pending&schedule_time=lte.${now}&limit=10&order=schedule_time.asc&select=*`,
+      {
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      return json({ error: "Failed to fetch queue" }, 500);
+    }
+
+    const postsToPost = await res.json() as any[];
+
+    if (!postsToPost || postsToPost.length === 0) {
+      return json({ processed: 0, message: "No posts to process" }, 200);
+    }
+
+    // Process each post
+    let processed = 0;
+    let failed = 0;
+
+    for (const queuedPost of postsToPost) {
+      try {
+        // Post to platforms
+        const results: PlatformPostResult[] = await Promise.all(
+          queuedPost.platforms.map((platform: Platform) =>
+            postToPlatform(platform, queuedPost.text, env, queuedPost.media_urls)
+          )
+        );
+
+        // Update queue status
+        const updateRes = await fetch(
+          `${supabaseUrl}/rest/v1/post_queue?id=eq.${queuedPost.id}`,
+          {
+            method: "PATCH",
+            headers: {
+              apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ status: "posted", posted_at: now }),
+          }
+        );
+
+        // Add to post history
+        const historyRes = await fetch(`${supabaseUrl}/rest/v1/post_history`, {
+          method: "POST",
+          headers: {
+            apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: queuedPost.user_id,
+            text: queuedPost.text,
+            platforms: queuedPost.platforms,
+            media_urls: queuedPost.media_urls,
+            results,
+            created_at: now,
+          }),
+        });
+
+        if (updateRes.ok && historyRes.ok) {
+          processed++;
+        } else {
+          failed++;
+        }
+      } catch (error) {
+        console.error("Failed to process queued post:", queuedPost.id, error);
+        failed++;
+      }
+    }
+
+    return json({ processed, failed, total: postsToPost.length }, 200);
+  } catch (error) {
+    console.error("Cron error:", error);
+    return json({ error: "Cron failed" }, 500);
+  }
 }
