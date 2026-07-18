@@ -304,6 +304,10 @@ a:hover { text-decoration: underline; }
   flex: 1;
   margin-left: var(--sidebar-width);
   padding: 36px 24px 60px;
+  transition: margin-left var(--transition);
+}
+.sidebar.hidden ~ .main-content {
+  margin-left: 0;
 }
 
 /* Buttons */
@@ -466,18 +470,26 @@ a:hover { text-decoration: underline; }
 
 .hero-platform-icons {
   display: flex;
-  gap: 8px;
+  gap: 0;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .hero-platform-icon {
-  font-size: 1.5rem;
-  opacity: 0.9;
-  transition: transform var(--transition), opacity var(--transition);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 0 10px;
+  transition: color var(--transition);
 }
-
+.hero-platform-icon:not(:last-child)::after {
+  content: "|";
+  position: relative;
+  left: 10px;
+  color: var(--border);
+}
 .hero-platform-icon:hover {
-  transform: scale(1.15);
-  opacity: 1;
+  color: var(--text);
 }
 
 /* ── FEATURES SECTION ── */
