@@ -1,22 +1,42 @@
 # Bundle.social Integration Strategy
 
+## All 15 Bundle platforms
+
+| Bundle platform | cnxt-to-post name | Posting | Analytics | Comments | Reels/Stories |
+|---|---|---|---|---|---|
+| BLUESKY | bluesky | ✅ | ✅ | ✅ | — |
+| TWITTER | x | ✅ | ❌ (X doesn't provide) | ❌ | — |
+| LINKEDIN | linkedin | ✅ | ✅ | ✅ | — |
+| FACEBOOK | facebook | ✅ | ✅ | ✅ | ✅ |
+| INSTAGRAM | instagram | ✅ | ✅ | ✅ | ✅ |
+| THREADS | threads | ✅ | ✅ | ✅ | — |
+| TIKTOK | tiktok | ✅ | ✅ | ✅ | — |
+| YOUTUBE | youtube | ✅ | ✅ | ✅ | Shorts ✅ |
+| PINTEREST | pinterest | ✅ | ✅ | — | — |
+| REDDIT | reddit | ✅ | Limited | ✅ | — |
+| MASTODON | mastodon | ✅ | Limited | ✅ | — |
+| DISCORD | discord | ✅ | ❌ | ✅ | — |
+| SLACK | slack | ✅ | ❌ | ✅ | — |
+| GOOGLE_BUSINESS | google_business | ✅ | ✅ | — | — |
+| SNAPCHAT | snapchat | ✅ | ✅ | — | ✅ |
+
 ## What Bundle.social provides
 
-Bundle handles 15 platforms through one API key. They manage OAuth, token refresh, platform-specific formatting, and rate limits.
+Every feature below is accessible through their REST API. We proxy calls through our Worker so the dashboard never touches Bundle directly.
 
-| Category | Bundle has (that we don't) | Effort to build ourselves |
+| Category | What Bundle does | Our status |
 |---|---|---|
-| **OAuth for 15 platforms** | Hosted + custom flow, token refresh, disconnect detection | Weeks per platform |
-| **Analytics** | Normalized across platforms, 30-day retention, force refresh | Medium |
-| **Comment import & reply** | Fetch, thread, reply, moderate | Medium (Bluesky done) |
-| **Media upload** | Up to 5GB, transcoding, validation | Low |
-| **First comment scheduling** | Schedule comment with post | Low |
-| **Post history import** | Pull past posts + analytics | Medium |
-| **Bulk CSV posting** | Async processing | Low |
-| **Webhooks** | post.published, post.failed events | Medium |
-| **Platform quirks** | Handles Instagram carousel, Reels, Stories, TikTok music, etc. | High |
-| **Rate limit management** | Per-platform daily caps tracked | Medium |
-| **Link-in-bio** | Built in | Already have via cnxt-to-links |
+| **Posting** | Text, images, video, carousel, Reels, Stories, Shorts, polls, threads, link previews, alt text, first comment, platform-specific formatting | ✅ Proxied via postViaProvider() |
+| **Scheduling** | postDate field, status SCHEDULED/DRAFT | ✅ Calendar UI calls Bundle |
+| **Account connect** | Hosted OAuth portal, custom UI flow, channel selection (Pages, channels, locations) | ✅ Portal link via /api/connect/:platform |
+| **Analytics** | Normalized across platforms, 30-day retention, force refresh, raw data, profile + post metrics | Need to wire |
+| **Comments** | Import, thread, reply, moderate (hide/delete/like), text limits per platform | Need to wire |
+| **Media upload** | Up to 5GB, transcoding, validation, URL upload | Need to wire |
+| **Post history import** | Pull past posts + analytics, 100 posts per import | Need to wire |
+| **Bulk CSV posting** | Async processing with per-row results | Optional |
+| **Webhooks** | post.published, post.failed events | Optional |
+| **Rate limit tracking** | Daily per-platform caps, monthly org caps, usage queries | ✅ Bundle handles |
+| **Link-in-bio** | Built in | We have cnxt-to-links |
 
 ## Pricing
 

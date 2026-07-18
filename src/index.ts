@@ -135,6 +135,12 @@ async function handleApi(
     return handleBundleAccounts(request, env, origin, h);
   }
 
+  // --- GET /api/analytics/:platform — proxy Bundle analytics ---
+  const analyticsMatch = url.pathname.match(/^\/api\/analytics\/([a-z]+)$/);
+  if (analyticsMatch && request.method === "GET") {
+    return handleBundleAnalytics(request, env, analyticsMatch[1], origin, h);
+  }
+
   // --- POST /api/schedule — schedule a post for later ---
   if (url.pathname === "/api/schedule" && request.method === "POST") {
     return handleSchedule(request, env, origin, h);
@@ -324,6 +330,46 @@ async function handleBundleAccounts(
     return json(accounts, 200, headers);
   } catch {
     return json([], 200, headers);
+  }
+}
+
+/**
+ * GET /api/analytics/:platform — Proxy Bundle.social analytics.
+ * Query params: ?type=profile or ?type=post&postId=xxx
+ */
+async function handleBundleAnalytics(
+  request: Request,
+  env: Env,
+  platform: string,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) {
+    return errorResponse("Bundle not configured", 501, origin);
+  }
+
+  const url = new URL(request.url);
+  const type = url.searchParams.get("type") || "profile";
+  const postId = url.searchParams.get("postId");
+  const bsPlatform = bundlePlatform(platform);
+  if (!bsPlatform) return errorResponse("Unknown platform", 400, origin);
+
+  try {
+    let endpoint: string;
+    if (type === "post" && postId) {
+      endpoint = `https://api.bundle.social/api/v1/analytics/post?postId=${postId}&platformType=${bsPlatform}`;
+    } else {
+      endpoint = `https://api.bundle.social/api/v1/analytics/social-account?teamId=${env.BUNDLE_TEAM_ID}&platformType=${bsPlatform}`;
+    }
+    const res = await fetch(endpoint, {
+      headers: { "x-api-key": env.SOCIAL_API_PROVIDER_KEY },
+    });
+    const data = await res.json();
+    return json(data, res.status, headers);
+  } catch {
+    return json({ error: "Analytics unavailable" }, 502, headers);
   }
 }
 
