@@ -277,10 +277,15 @@ async function handleConnect(
   }
 
   try {
+    // Bundle portal link — optionally pre-filtered by platform type
+    const bsPlatform = bundlePlatform(platform);
+    const body: Record<string, string> = { teamId: env.BUNDLE_TEAM_ID };
+    if (bsPlatform) body.platformType = bsPlatform;
+
     const res = await fetch("https://api.bundle.social/api/v1/social-account/portal-link", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": env.SOCIAL_API_PROVIDER_KEY },
-      body: JSON.stringify({ teamId: env.BUNDLE_TEAM_ID }),
+      body: JSON.stringify(body),
     });
     const data = (await res.json()) as any;
     return json({ url: data.url || "https://bundle.social/dashboard" }, 200, headers);
@@ -666,6 +671,15 @@ async function createBlueskySession(handle: string, password: string) {
   });
   if (!res.ok) throw new Error("Bluesky auth failed");
   return (await res.json()) as { accessJwt: string; did: string };
+}
+
+/** Map our platform names to Bundle.social ALL CAPS format */
+function bundlePlatform(key: string): string | null {
+  const m: Record<string, string> = {
+    bluesky: "BLUESKY", x: "TWITTER", linkedin: "LINKEDIN",
+    facebook: "FACEBOOK", instagram: "INSTAGRAM", threads: "THREADS", tiktok: "TIKTOK",
+  };
+  return m[key] || null;
 }
 
 /**
