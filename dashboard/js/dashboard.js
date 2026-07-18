@@ -52,13 +52,25 @@ async function refreshAuth() {
 async function fetchProfiles() {
   if (!session?.access_token) { connectedProfiles = []; return; }
   try {
+    // Fetch our platform tokens
     const res = await fetch(`${API_BASE}/api/profiles`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
     const data = await res.json();
     connectedProfiles = data.profiles || [];
+
+    // Also fetch Bundle-connected accounts
+    const bundleRes = await fetch(`${API_BASE}/api/bundle-accounts`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const bundleData = await bundleRes.json();
+    for (const acc of bundleData || []) {
+      if (!connectedProfiles.some((p) => p.platform === acc.platform && p.handle === acc.handle)) {
+        connectedProfiles.push({ platform: acc.platform, label: acc.handle || acc.platform, handle: acc.handle, id: `bundle-${acc.platform}` });
+      }
+    }
   } catch {
-    connectedProfiles = [];
+    // keep existing profiles
   }
 }
 
@@ -331,7 +343,23 @@ function connectPlatform(key) {
       renderPlatformChips();
     }
   } else {
-    alert(`${platform.name} OAuth will be available once the developer app is registered.\n\nSupports multiple profiles (personal + company pages) per platform.`);
+    // Redirect to Bundle.social portal for OAuth
+    fetchConnectUrl(key);
+  }
+}
+
+async function fetchConnectUrl(platform) {
+  if (!session?.access_token) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/connect/${platform}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const data = await res.json();
+    if (data.url) {
+      window.open(data.url, "_blank");
+    }
+  } catch {
+    alert("Unable to connect. Open https://bundle.social/dashboard to connect accounts.");
   }
 }
 

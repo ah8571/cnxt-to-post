@@ -124,6 +124,17 @@ async function handleApi(
     return handleProfiles(request, env, origin, h);
   }
 
+  // --- GET /api/connect/:platform — get Bundle connection URL ---
+  const connectMatch = url.pathname.match(/^\/api\/connect\/([a-z]+)$/);
+  if (connectMatch && request.method === "GET") {
+    return handleConnect(request, env, connectMatch[1], origin, h);
+  }
+
+  // --- GET /api/bundle-accounts — list Bundle-connected accounts ---
+  if (url.pathname === "/api/bundle-accounts" && request.method === "GET") {
+    return handleBundleAccounts(request, env, origin, h);
+  }
+
   // --- POST /api/schedule — schedule a post for later ---
   if (url.pathname === "/api/schedule" && request.method === "POST") {
     return handleSchedule(request, env, origin, h);
@@ -245,6 +256,69 @@ async function handleProfiles(
     return json({ profiles: listConnectedProfiles(tokens), mode: "multi-user" }, 200, headers);
   } catch {
     return json({ profiles: [], mode: "error" }, 200, headers);
+  }
+}
+
+/**
+ * GET /api/connect/:platform — Return Bundle.social connection portal URL.
+ */
+async function handleConnect(
+  request: Request,
+  env: Env,
+  platform: string,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) {
+    return json({ url: "https://bundle.social/dashboard" }, 200, headers);
+  }
+
+  try {
+    const res = await fetch("https://api.bundle.social/api/v1/social-account/portal-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": env.SOCIAL_API_PROVIDER_KEY },
+      body: JSON.stringify({ teamId: env.BUNDLE_TEAM_ID }),
+    });
+    const data = (await res.json()) as any;
+    return json({ url: data.url || "https://bundle.social/dashboard" }, 200, headers);
+  } catch {
+    return json({ url: "https://bundle.social/dashboard" }, 200, headers);
+  }
+}
+
+/**
+ * GET /api/bundle-accounts — List social accounts connected via Bundle.
+ */
+async function handleBundleAccounts(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+
+  if (!env.SOCIAL_API_PROVIDER_KEY || !env.BUNDLE_TEAM_ID) {
+    return json([], 200, headers);
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.bundle.social/api/v1/social-account?teamId=${env.BUNDLE_TEAM_ID}`,
+      { headers: { "x-api-key": env.SOCIAL_API_PROVIDER_KEY } }
+    );
+    const data = (await res.json()) as any;
+    const accounts = (data.items || data || []).map((a: any) => ({
+      platform: (a.type || "").toLowerCase(),
+      handle: a.name || a.handle || a.username || "",
+      connected: a.status === "CONNECTED" || a.isConnected,
+    }));
+    return json(accounts, 200, headers);
+  } catch {
+    return json([], 200, headers);
   }
 }
 
