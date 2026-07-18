@@ -677,7 +677,8 @@ async function createBlueskySession(handle: string, password: string) {
 function bundlePlatform(key: string): string | null {
   const m: Record<string, string> = {
     bluesky: "BLUESKY", x: "TWITTER", linkedin: "LINKEDIN",
-    facebook: "FACEBOOK", instagram: "INSTAGRAM", threads: "THREADS", tiktok: "TIKTOK",
+    facebook: "FACEBOOK", instagram: "INSTAGRAM", threads: "THREADS",
+    tiktok: "TIKTOK", youtube: "YOUTUBE",
   };
   return m[key] || null;
 }

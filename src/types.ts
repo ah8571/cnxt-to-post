@@ -1,5 +1,5 @@
 /** Supported social platforms */
-export type Platform = "bluesky" | "facebook" | "instagram" | "linkedin" | "threads" | "tiktok" | "x";
+export type Platform = "bluesky" | "facebook" | "instagram" | "linkedin" | "threads" | "tiktok" | "x" | "youtube";
 
 /** A post request from the client */
 export interface PostRequest {
