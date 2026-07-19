@@ -406,7 +406,9 @@ a:hover { text-decoration: underline; }
 
 /* Card */
 .card {
-  background: var(--surface);
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 28px;
@@ -440,7 +442,9 @@ a:hover { text-decoration: underline; }
 .hero-content {
   max-width: 620px;
   margin: 0 auto;
-  background: var(--bg);
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 48px 40px;
@@ -554,7 +558,9 @@ a:hover { text-decoration: underline; }
 
 .feature-card {
   padding: 32px;
-  background: var(--bg);
+  background: var(--panel);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   transition: all var(--transition);
