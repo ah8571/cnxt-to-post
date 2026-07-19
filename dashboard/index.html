@@ -173,7 +173,7 @@
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
               </div>
               <h3 class="feature-title">100% Free</h3>
-              <p class="feature-description">No subscriptions, no limits, no hidden fees. Open source and community-driven.</p>
+              <p class="feature-description">No subscriptions, no limits, no hidden fees. Open source and community-driven.<br><small style="color:var(--text-muted);">Except pass-through third party costs (X API &amp; Stripe processing fees).</small></p>
             </div>
           </div>
         </div>
@@ -471,6 +471,6 @@
   <script>document.querySelector('.cnxt-footer-year').textContent = new Date().getFullYear();</script>
 <script>document.getElementById("btn-theme-toggle").addEventListener("click",()=>{const t=document.documentElement.dataset.theme==="dark"?"":"dark";document.documentElement.dataset.theme=t;localStorage.setItem("cnxt-theme",t)});(function(){const t=localStorage.getItem("cnxt-theme");if(t)document.documentElement.dataset.theme=t})();
 // Typing animation
-(function(){const L1="Post to everywhere.",L2="From one place.",D="Social media poster powered by cnxt",S="Free web & API (mobile app coming soon)";const e1=document.getElementById("hero-line1"),e2=document.getElementById("hero-line2"),ed=document.getElementById("hero-desc"),es=document.getElementById("hero-subline"),cur=document.querySelector(".hero-cursor");let s=0;const all=L1+L2+D+S;const b1=L1.length,b2=b1+L2.length,b3=b2+D.length;function type(){if(s<all.length){if(s<b1){e1.textContent+=all[s]}else{if(s===b1){cur.remove();e2.textContent=""}if(s<b2){e2.textContent+=all[s]}else{if(s===b2)ed.textContent="";if(s<b3){ed.textContent+=all[s]}else{if(s===b3){es.style.display="block";es.textContent="";}es.textContent+=all[s]}}}s++;const ch=all[s-1];setTimeout(type,ch==="."?700:55+Math.random()*35)}else{cur.style.display="inline";es.appendChild(cur)}}setTimeout(type,500)})();</script></script>
+(function(){const L1="Post everywhere.",L2="From one place.",D="Social media poster powered by cnxt",S="Free web & API (mobile app coming soon) \u2014 except pass-through third party costs (X & Stripe fees)";const e1=document.getElementById("hero-line1"),e2=document.getElementById("hero-line2"),ed=document.getElementById("hero-desc"),es=document.getElementById("hero-subline"),cur=document.querySelector(".hero-cursor");let s=0;const all=L1+L2+D+S;const b1=L1.length,b2=b1+L2.length,b3=b2+D.length;function type(){if(s<all.length){if(s<b1){e1.textContent+=all[s]}else{if(s===b1){cur.remove();e2.textContent=""}if(s<b2){e2.textContent+=all[s]}else{if(s===b2)ed.textContent="";if(s<b3){ed.textContent+=all[s]}else{if(s===b3){es.style.display="block";es.textContent="";}es.textContent+=all[s]}}}s++;const ch=all[s-1];setTimeout(type,ch==="."?700:55+Math.random()*35)}else{cur.style.display="inline";es.appendChild(cur)}}setTimeout(type,500)})();</script></script>
 </body>
 </html>
