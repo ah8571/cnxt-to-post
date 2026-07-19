@@ -10,7 +10,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // ── Platform config ──
 const PLATFORMS = [
   { key: "bluesky",   name: "Bluesky",   oauth: false, note: "App Password — no registration needed" },
-  { key: "x",         name: "X",          oauth: true,  note: "BYOK or credits required" },
+  { key: "x",         name: "X",          oauth: true,  note: "Fair-use included or BYOK" },
   { key: "linkedin",  name: "LinkedIn",   oauth: true },
   { key: "facebook",  name: "Facebook",   oauth: true },
   { key: "instagram", name: "Instagram",  oauth: true },
