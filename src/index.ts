@@ -588,30 +588,43 @@ async function handlePost(
     return errorResponse("Text content is required", 400, origin);
   }
 
-  // Rate limit: 30 posts per minute per user (if KV is configured)
-  if (env.RATE_LIMITS) {
-    const rateKey = `rate:post:${user.sub}`;
-    const current = parseInt((await env.RATE_LIMITS.get(rateKey)) ?? "0");
-    if (current >= 30) {
-      return errorResponse("Rate limit exceeded. Max 30 posts per minute.", 429, origin);
-    }
-    await env.RATE_LIMITS.put(rateKey, String(current + 1), { expirationTtl: 60 });
-  }
+  // ── Rate limits (KV-backed) ──
 
-  // Fetch per-user platform tokens (or fall back to env vars)
+  // Fetch per-user platform tokens first (needed for BYOK detection + direct posting)
   let userTokens: PlatformToken[] = [];
   if (env.SUPABASE_SERVICE_ROLE_KEY) {
     userTokens = await fetchUserTokens(user.sub, env.SUPABASE_SERVICE_ROLE_KEY);
   }
 
-  // X fair-use rate limit: 100 posts/month per user via Bundle (BYOK users bypass)
-  if (body.platforms.includes("x") && env.RATE_LIMITS) {
-    const hasXByok = userTokens.some(t => t.platform === "x" && (t.metadata as any)?.consumer_key);
-    if (!hasXByok) {
-      const monthKey = `x-monthly:${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth()+1).padStart(2,"0")}:${user.sub}`;
-      const xCount = parseInt((await env.RATE_LIMITS.get(monthKey)) ?? "0");
-      if (xCount >= 100) {
-        return errorResponse("X monthly fair-use limit reached (100 posts/mo). Add your own X API keys for unlimited posting.", 429, origin);
+  if (env.RATE_LIMITS) {
+    const now = new Date();
+    const dateStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}-${String(now.getUTCDate()).padStart(2,"0")}`;
+    const monthStr = dateStr.slice(0, 7); // "YYYY-MM"
+
+    // 1. Per-minute: 30 posts/min
+    const minKey = `rate:min:${user.sub}`;
+    const minCount = parseInt((await env.RATE_LIMITS.get(minKey)) ?? "0");
+    if (minCount >= 30) {
+      return errorResponse("Rate limit exceeded. Max 30 posts per minute.", 429, origin);
+    }
+    await env.RATE_LIMITS.put(minKey, String(minCount + 1), { expirationTtl: 60 });
+
+    // 2. Per-day: 50 posts/day (prevents one user draining Bundle quota in a day)
+    const dayKey = `rate:day:${dateStr}:${user.sub}`;
+    const dayCount = parseInt((await env.RATE_LIMITS.get(dayKey)) ?? "0");
+    if (dayCount >= 50) {
+      return errorResponse("Daily post limit reached (50/day). Try again tomorrow.", 429, origin);
+    }
+
+    // 3. Per-platform monthly: 300 posts/platform/month (prevents bot attacks on one platform)
+    // BYOK for X bypasses the monthly cap
+    const hasXByok = userTokens?.some(t => t.platform === "x" && (t.metadata as any)?.consumer_key);
+    for (const platform of body.platforms) {
+      if (platform === "x" && hasXByok) continue; // BYOK bypass
+      const platMonthKey = `rate:plat:${monthStr}:${platform}:${user.sub}`;
+      const platCount = parseInt((await env.RATE_LIMITS.get(platMonthKey)) ?? "0");
+      if (platCount >= 300) {
+        return errorResponse(`${platform} monthly limit reached (300 posts/mo).${platform === "x" ? " Add your own X API keys for unlimited posting." : ""}`, 429, origin);
       }
     }
   }
@@ -628,16 +641,24 @@ async function handlePost(
     })
   );
 
-  // Increment X monthly counter for fair-use posts via Bundle (not BYOK)
-  if (body.platforms.includes("x") && env.RATE_LIMITS) {
+  // Increment daily + per-platform monthly counters
+  if (env.RATE_LIMITS) {
+    const now = new Date();
+    const dateStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}-${String(now.getUTCDate()).padStart(2,"0")}`;
+    const monthStr = dateStr.slice(0, 7);
+
+    // Daily counter
+    const dayKey = `rate:day:${dateStr}:${user.sub}`;
+    const dayCur = parseInt((await env.RATE_LIMITS.get(dayKey)) ?? "0");
+    await env.RATE_LIMITS.put(dayKey, String(dayCur + 1), { expirationTtl: 86400 });
+
+    // Per-platform monthly counters
     const hasXByok = userTokens.some(t => t.platform === "x" && (t.metadata as any)?.consumer_key);
-    if (!hasXByok) {
-      const xResult = results.find(r => r.platform === "x");
-      if (xResult?.success) {
-        const monthKey = `x-monthly:${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth()+1).padStart(2,"0")}:${user.sub}`;
-        const current = parseInt((await env.RATE_LIMITS.get(monthKey)) ?? "0");
-        await env.RATE_LIMITS.put(monthKey, String(current + 1), { expirationTtl: 60 * 86400 }); // ~2 months
-      }
+    for (const platform of body.platforms) {
+      if (platform === "x" && hasXByok) continue;
+      const platMonthKey = `rate:plat:${monthStr}:${platform}:${user.sub}`;
+      const platCur = parseInt((await env.RATE_LIMITS.get(platMonthKey)) ?? "0");
+      await env.RATE_LIMITS.put(platMonthKey, String(platCur + 1), { expirationTtl: 60 * 86400 });
     }
   }
 
