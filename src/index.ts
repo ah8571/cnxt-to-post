@@ -604,6 +604,18 @@ async function handlePost(
     userTokens = await fetchUserTokens(user.sub, env.SUPABASE_SERVICE_ROLE_KEY);
   }
 
+  // X fair-use rate limit: 100 posts/month per user via Bundle (BYOK users bypass)
+  if (body.platforms.includes("x") && env.RATE_LIMITS) {
+    const hasXByok = userTokens.some(t => t.platform === "x" && (t.metadata as any)?.consumer_key);
+    if (!hasXByok) {
+      const monthKey = `x-monthly:${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth()+1).padStart(2,"0")}:${user.sub}`;
+      const xCount = parseInt((await env.RATE_LIMITS.get(monthKey)) ?? "0");
+      if (xCount >= 100) {
+        return errorResponse("X monthly fair-use limit reached (100 posts/mo). Add your own X API keys for unlimited posting.", 429, origin);
+      }
+    }
+  }
+
   // Post to each platform in parallel, with provider fallback
   const results: PlatformPostResult[] = await Promise.all(
     body.platforms.map(async (platform) => {
@@ -615,6 +627,19 @@ async function handlePost(
       return result;
     })
   );
+
+  // Increment X monthly counter for fair-use posts via Bundle (not BYOK)
+  if (body.platforms.includes("x") && env.RATE_LIMITS) {
+    const hasXByok = userTokens.some(t => t.platform === "x" && (t.metadata as any)?.consumer_key);
+    if (!hasXByok) {
+      const xResult = results.find(r => r.platform === "x");
+      if (xResult?.success) {
+        const monthKey = `x-monthly:${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth()+1).padStart(2,"0")}:${user.sub}`;
+        const current = parseInt((await env.RATE_LIMITS.get(monthKey)) ?? "0");
+        await env.RATE_LIMITS.put(monthKey, String(current + 1), { expirationTtl: 60 * 86400 }); // ~2 months
+      }
+    }
+  }
 
   const response: PostResponse = {
     id: crypto.randomUUID(),
