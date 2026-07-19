@@ -406,13 +406,12 @@ a:hover { text-decoration: underline; }
 
 /* Card */
 .card {
-  background: radial-gradient(ellipse at 50% 25%, var(--surface) 0%, var(--panel) 75%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: radial-gradient(ellipse at 50% 25%, var(--surface) 0%, var(--surface) 35%, transparent 100%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 28px;
-  box-shadow: var(--shadow-sm);
 }
 
 .card-header {
@@ -442,9 +441,9 @@ a:hover { text-decoration: underline; }
 .hero-content {
   max-width: 620px;
   margin: 0 auto;
-  background: radial-gradient(ellipse at 50% 20%, var(--surface) 0%, var(--panel) 80%);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: radial-gradient(ellipse at 50% 20%, var(--surface) 0%, var(--surface) 30%, transparent 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 48px 40px;
@@ -558,9 +557,9 @@ a:hover { text-decoration: underline; }
 
 .feature-card {
   padding: 32px;
-  background: radial-gradient(ellipse at 50% 25%, var(--surface) 0%, var(--panel) 75%);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: radial-gradient(ellipse at 50% 25%, var(--surface) 0%, var(--surface) 35%, transparent 100%);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   transition: all var(--transition);
