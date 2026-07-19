@@ -124,6 +124,11 @@ async function handleApi(
     return handleProfiles(request, env, origin, h);
   }
 
+  // --- POST /api/profiles/token — save BYOK platform token ---
+  if (url.pathname === "/api/profiles/token" && request.method === "POST") {
+    return handleSaveToken(request, env, origin, h);
+  }
+
   // --- GET /api/connect/:platform — get Bundle connection URL ---
   const connectMatch = url.pathname.match(/^\/api\/connect\/([a-z]+)$/);
   if (connectMatch && request.method === "GET") {
@@ -282,6 +287,65 @@ async function handleProfiles(
     return json({ profiles: listConnectedProfiles(tokens), mode: "multi-user" }, 200, headers);
   } catch {
     return json({ profiles: [], mode: "error" }, 200, headers);
+  }
+}
+
+/**
+ * POST /api/profiles/token — Save a BYOK platform token (e.g. X OAuth 1.0a keys).
+ * Body: { platform, label, handle, accessToken, metadata: { consumer_key, consumer_secret, access_secret, ... } }
+ */
+async function handleSaveToken(
+  request: Request,
+  env: Env,
+  origin: string,
+  headers: Record<string, string>
+): Promise<Response> {
+  const user = await validateSupabaseJWT(env.SUPABASE_JWT_SECRET, request.headers.get("Authorization"));
+  if (!user) return errorResponse("Unauthorized", 401, origin);
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return errorResponse("Service role key not configured", 500, origin);
+
+  try {
+    const body = await request.json() as {
+      platform: string;
+      label: string;
+      handle: string;
+      accessToken: string;
+      metadata?: Record<string, unknown>;
+    };
+
+    if (!body.platform || !body.accessToken) {
+      return errorResponse("platform and accessToken are required", 400, origin);
+    }
+
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/platform_tokens`,
+      {
+        method: "POST",
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({
+          user_id: user.sub,
+          platform: body.platform,
+          profile_label: body.label || "Default",
+          platform_handle: body.handle || "",
+          access_token: body.accessToken,
+          metadata: body.metadata || {},
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.text();
+      return errorResponse(`Failed to save token: ${err}`, 500, origin);
+    }
+
+    return json({ ok: true }, 200, headers);
+  } catch (e: any) {
+    return errorResponse(e.message || "Internal error", 500, origin);
   }
 }
 
@@ -613,12 +677,13 @@ async function postToPlatform(
       return postToThreads(text, accessToken, userId, mediaUrls);
     }
     case "x": {
-      const consumerKey = env.X_CONSUMER_KEY;
-      const consumerSecret = env.X_CONSUMER_KEY_SECRET;
+      // BYOK: prefer user's own OAuth 1.0a keys from platform_tokens metadata
+      const consumerKey = (token?.metadata as any)?.consumer_key || env.X_CONSUMER_KEY;
+      const consumerSecret = (token?.metadata as any)?.consumer_secret || env.X_CONSUMER_KEY_SECRET;
       const accessToken = token?.access_token || env.X_ACCESS_TOKEN;
       const accessSecret = (token?.metadata as any)?.access_secret || env.X_ACCESS_TOKEN_SECRET;
       if (!consumerKey || !consumerSecret || !accessToken || !accessSecret)
-        return { platform, success: false, error: "X not configured — OAuth 1.0a keys required" };
+        return { platform, success: false, error: "X not configured — OAuth 1.0a keys required (BYOK or env vars)" };
       return postToX(text, consumerKey, consumerSecret, accessToken, accessSecret, replyTo);
     }
 

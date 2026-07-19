@@ -350,9 +350,59 @@ function connectPlatform(key) {
       renderAccounts();
       renderPlatformChips();
     }
+  } else if (key === "x") {
+    // BYOK for X — user brings their own OAuth 1.0a keys from developer.twitter.com
+    const label = prompt("Profile name (e.g. 'Personal' or 'Brand'):", "Personal");
+    if (!label) return;
+    const handle = prompt("X @handle (e.g. @yourname):");
+    if (!handle) return;
+    const consumerKey = prompt("X API Key (from developer.twitter.com portal):");
+    if (!consumerKey) return;
+    const consumerSecret = prompt("X API Key Secret:");
+    if (!consumerSecret) return;
+    const accessToken = prompt("X Access Token:");
+    if (!accessToken) return;
+    const accessSecret = prompt("X Access Token Secret:");
+    if (!accessSecret) return;
+
+    saveXToken(label, handle, consumerKey, consumerSecret, accessToken, accessSecret);
   } else {
     // Redirect to Bundle.social portal for OAuth
     fetchConnectUrl(key);
+  }
+}
+
+async function saveXToken(label, handle, consumerKey, consumerSecret, accessToken, accessSecret) {
+  if (!session?.access_token) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/profiles/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        platform: "x",
+        label,
+        handle,
+        accessToken,
+        metadata: {
+          consumer_key: consumerKey,
+          consumer_secret: consumerSecret,
+          access_secret: accessSecret,
+        },
+      }),
+    });
+    if (res.ok) {
+      connectedProfiles.push({ platform: "x", label, handle, id: crypto.randomUUID() });
+      renderAccounts();
+      renderPlatformChips();
+    } else {
+      const err = await res.json();
+      alert(err.error || "Failed to save X keys");
+    }
+  } catch {
+    alert("Network error saving X keys.");
   }
 }
 
