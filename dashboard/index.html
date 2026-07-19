@@ -107,7 +107,7 @@
             <div class="hero-badge">Free • No subscriptions</div>
             <h1 class="hero-title"><span id="hero-line1"></span><span class="hero-cursor">|</span><br><span id="hero-line2"></span></h1>
             <p class="hero-description" id="hero-desc"></p>
-            <p class="hero-subline" id="hero-subline" style="display:none;font-size:0.9375rem;color:var(--text-muted);margin-bottom:24px;">Free API, web &amp; mobile app <span style="font-size:0.75rem;">(coming soon)</span></p>
+            <p class="hero-subline" id="hero-subline" style="display:none;font-size:0.9375rem;color:var(--text-muted);margin-bottom:24px;"></p>
             <div class="hero-actions">
               <a href="https://auth.cnxt.to/?redirect=https://post.cnxt.to/" class="btn btn-primary btn-large">Get started free</a>
               <a href="https://github.com/ah8571/cnxt-to-post" class="btn btn-secondary btn-large">
@@ -471,6 +471,6 @@
   <script>document.querySelector('.cnxt-footer-year').textContent = new Date().getFullYear();</script>
 <script>document.getElementById("btn-theme-toggle").addEventListener("click",()=>{const t=document.documentElement.dataset.theme==="dark"?"":"dark";document.documentElement.dataset.theme=t;localStorage.setItem("cnxt-theme",t)});(function(){const t=localStorage.getItem("cnxt-theme");if(t)document.documentElement.dataset.theme=t})();
 // Typing animation
-(function(){const L1="Post to everywhere.",L2="From one place.",D="Compose once, publish everywhere.";const e1=document.getElementById("hero-line1"),e2=document.getElementById("hero-line2"),ed=document.getElementById("hero-desc"),es=document.getElementById("hero-subline"),cur=document.querySelector(".hero-cursor");let s=0;const all=L1+L2+D;function type(){if(s<all.length){if(s<L1.length){e1.textContent+=all[s]}else{if(s===L1.length){cur.remove();e2.textContent=""}if(s<L1.length+L2.length){e2.textContent+=all[s]}else{if(s===L1.length+L2.length)ed.textContent="";ed.textContent+=all[s]}}s++;const ch=all[s-1];setTimeout(type,ch==="."?700:55+Math.random()*35)}else{if(es)es.style.display="block";cur.style.display="inline";e2.appendChild(cur)}}setTimeout(type,500)})();</script></script>
+(function(){const L1="Post to everywhere.",L2="From one place.",D="Social media poster powered by cnxt",S="Free API, web & mobile app (coming soon)";const e1=document.getElementById("hero-line1"),e2=document.getElementById("hero-line2"),ed=document.getElementById("hero-desc"),es=document.getElementById("hero-subline"),cur=document.querySelector(".hero-cursor");let s=0;const all=L1+L2+D+S;const b1=L1.length,b2=b1+L2.length,b3=b2+D.length;function type(){if(s<all.length){if(s<b1){e1.textContent+=all[s]}else{if(s===b1){cur.remove();e2.textContent=""}if(s<b2){e2.textContent+=all[s]}else{if(s===b2)ed.textContent="";if(s<b3){ed.textContent+=all[s]}else{if(s===b3){es.style.display="block";es.textContent="";}es.textContent+=all[s]}}}s++;const ch=all[s-1];setTimeout(type,ch==="."?700:55+Math.random()*35)}else{cur.style.display="inline";es.appendChild(cur)}}setTimeout(type,500)})();</script></script>
 </body>
 </html>
